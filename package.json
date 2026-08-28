@@ -1,0 +1,22 @@
+{
+  "name": "nightfold",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cross-chain Texas Hold'em where the losing hand is never revealed. Cards private on Midnight, chips on Base and Solana.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "compile": "compact compile contracts/nightfold.compact contracts/managed/nightfold",
+    "typecheck": "compact compile --skip-zk contracts/nightfold.compact contracts/managed/nightfold-tc",
+    "test": "NODE_OPTIONS='--experimental-vm-modules' vitest run",
+    "proof:up": "docker compose up -d --wait proof-server",
+    "env:up": "docker compose up -d --wait",
+    "env:down": "docker compose down"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "^0.16.0"
+  }
+}

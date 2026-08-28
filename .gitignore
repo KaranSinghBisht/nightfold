@@ -1,0 +1,9 @@
+node_modules/
+contracts/managed/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+midnight-level-db/
+.omc/
