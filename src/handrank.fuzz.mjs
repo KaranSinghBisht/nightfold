@@ -8,7 +8,7 @@
 // matters — rather than comparing packed values, which are an implementation
 // detail the reference has no reason to reproduce.
 
-import { pureCircuits } from '../contracts/managed/handrank-tc/contract/index.js';
+import { pureCircuits } from '../contracts/managed/nightfold-tc/contract/index.js';
 
 const toCard = (id) => ({ id: BigInt(id), rank: BigInt(id >> 2), suit: BigInt(id & 3) });
 
@@ -82,8 +82,8 @@ for (let i = 0; i < N; i++) {
   const refA = reference(A), refB = reference(B);
   catSeen.add(refA[0]);
 
-  const vA = pureCircuits.evaluate5(A.map(toCard));
-  const vB = pureCircuits.evaluate5(B.map(toCard));
+  const vA = pureCircuits.handValue(A.map(toCard));
+  const vB = pureCircuits.handValue(B.map(toCard));
 
   const wantOrd = cmpRef(refA, refB);
   const gotOrd = vA === vB ? 0 : vA > vB ? 1 : -1;

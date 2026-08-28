@@ -14,7 +14,11 @@
     "test": "NODE_OPTIONS='--experimental-vm-modules' vitest run",
     "proof:up": "docker compose up -d --wait proof-server",
     "env:up": "docker compose up -d --wait",
-    "env:down": "docker compose down"
+    "env:down": "docker compose down",
+    "check:rank": "node src/handrank.check.mjs",
+    "check:fuzz": "node src/handrank.fuzz.mjs 20000",
+    "check:hand": "node src/hand.e2e.mjs",
+    "check": "npm run typecheck && npm run check:rank && npm run check:fuzz && npm run check:hand"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "^0.16.0"

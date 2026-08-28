@@ -1,0 +1,169 @@
+pragma language_version >= 0.20;
+import CompactStandardLibrary;
+import HandRank;
+
+// ============================================================================
+// Nightfold — cross-chain Texas Hold'em where the losing hand is never shown.
+//
+// The ledger only ever learns:
+//   - that a player committed to two hole cards        (an opaque commitment)
+//   - the RANK their hand reached at showdown          (a single integer)
+//   - who won, and a payout attestation for the relayer
+//
+// It never learns the cards. A player who loses proves only that they lost.
+// Their hand goes into the muck and stays there — permanently, not just until
+// someone runs an indexer over it.
+//
+// Betting and the public board live on the money chains (Base, Solana), which
+// settle in seconds. Midnight is touched exactly twice per hand.
+// ============================================================================
+
+// ---- ledger ----------------------------------------------------------------
+// Keyed by seatKey = H("nf:seat", handId, seat) so hands never collide.
+
+export ledger holeCommits: Map<Bytes<32>, Bytes<32>>;
+export ledger shownRanks:  Map<Bytes<32>, Uint<32>>;
+export ledger settledHands: Set<Bytes<32>>;
+export ledger payoutAttest: Map<Bytes<32>, Bytes<32>>;
+export ledger handsDealt:  Counter;
+export ledger handsSettled: Counter;
+
+// ---- private inputs --------------------------------------------------------
+
+witness holeCards(): Vector<2, Card>;
+witness holeSalt(): Bytes<32>;
+// The five cards the player is claiming, and where each sits among their
+// seven (2 hole + 5 board). Supplying the cards directly rather than selecting
+// them in-circuit keeps evaluate5's inputs as plain values -- selecting with a
+// ternary ladder builds a deep expression tree for every card, and evaluate5
+// reads each card about ten times, so the shared-subexpression blowup makes
+// the circuit uncompilable in practice.
+witness claimedHand(): Vector<5, Card>;
+witness handPick(): Vector<5, Uint<8>>;
+
+// ---- keys and commitments --------------------------------------------------
+
+export circuit seatKey(handId: Bytes<32>, seat: Uint<8>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>(
+    [pad(32, "nf:seat:"), handId, persistentHash<Uint<8>>(seat)]
+  );
+}
+
+// Binding + hiding commitment to the two hole cards.
+export circuit holeCommitment(cards: Vector<2, Card>, salt: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<4, Bytes<32>>>([
+    pad(32, "nf:hole:"),
+    persistentHash<Uint<8>>(cards[0].id),
+    persistentHash<Uint<8>>(cards[1].id),
+    salt
+  ]);
+}
+
+// Exposes the hand evaluator as a pure circuit so the client can pick its best
+// five off-chain using exactly the same ranking the circuit will verify. Pure,
+// so it costs nothing at deploy time and generates no keys.
+export circuit handValue(hand: Vector<5, Card>): Uint<32> {
+  return evaluate5(hand);
+}
+
+// ---- circuits --------------------------------------------------------------
+
+// Player commits to their two hole cards. The chain sees an opaque 32 bytes.
+export circuit commitDeal(handId: Bytes<32>, seat: Uint<8>): [] {
+  const cards = holeCards();
+  checkCard(cards[0]);
+  checkCard(cards[1]);
+  assert(cards[0].id != cards[1].id, "duplicate hole cards");
+
+  const key = disclose(seatKey(handId, seat));
+  assert(!holeCommits.member(key), "seat already dealt");
+
+  holeCommits.insert(key, disclose(holeCommitment(cards, holeSalt())));
+  handsDealt.increment(1);
+}
+
+// Showdown. Proves the player's committed hole cards, combined with the public
+// board, make a hand of rank R -- and publishes ONLY R.
+//
+// The player names which five of their seven cards they are claiming. They are
+// free to under-claim, which only ever loses them the pot, so a single
+// evaluation is sound and all 21 combinations never have to be checked.
+export circuit revealHand(
+  handId: Bytes<32>,
+  seat: Uint<8>,
+  board: Vector<5, Card>
+): Uint<32> {
+  const cards = holeCards();
+  const salt = holeSalt();
+  const key = disclose(seatKey(handId, seat));
+
+  // The commitment binds them to the cards they were dealt.
+  assert(holeCommits.member(key), "no commitment for seat");
+  assert(holeCommits.lookup(key) == disclose(holeCommitment(cards, salt)),
+         "hole cards do not open the commitment");
+  assert(!shownRanks.member(key), "already revealed");
+
+  for (const i of 0..5) {
+    checkCard(board[i]);
+  }
+
+  const src: Vector<7, Card> = [
+    cards[0], cards[1],
+    board[0], board[1], board[2], board[3], board[4]
+  ];
+
+  // Each claimed card must sit at a DISTINCT position among the seven.
+  // Checked as an implication per (claim, position) pair -- 35 constraints on
+  // plain values, rather than obliviously selecting the cards in-circuit.
+  const pick = handPick();
+  const claimed = claimedHand();
+
+  for (const i of 0..5) {
+    assert(pick[i] < 7, "pick out of range");
+    for (const k of 0..5) {
+      if (i < k) {
+        assert(pick[i] != pick[k], "duplicate card in claimed hand");
+      }
+    }
+    for (const j of 0..7) {
+      const at = pick[i] == (j as Uint<8>);
+      assert(!at || (claimed[i].id == src[j].id), "claimed card not in hand");
+    }
+  }
+
+  // Publishing the rank is the entire point: it is what lets the pot move
+  // while the cards stay in the muck. Declared explicitly so the disclosure
+  // is a decision in the source, not an accident.
+  const value = disclose(evaluate5(claimed));
+  shownRanks.insert(key, value);
+  return value;
+}
+
+// Compares the two proven ranks and writes a payout attestation the relayer
+// carries to whichever chains the two players funded from.
+export circuit settle(handId: Bytes<32>): Uint<8> {
+  const k0 = disclose(seatKey(handId, 0));
+  const k1 = disclose(seatKey(handId, 1));
+
+  assert(shownRanks.member(k0), "seat 0 has not revealed");
+  assert(shownRanks.member(k1), "seat 1 has not revealed");
+  assert(!settledHands.member(disclose(handId)), "hand already settled");
+
+  const r0 = shownRanks.lookup(k0);
+  const r1 = shownRanks.lookup(k1);
+
+  // 0 = seat 0 wins, 1 = seat 1 wins, 2 = split pot
+  const winner = r0 > r1 ? 0 : r1 > r0 ? 1 : 2;
+
+  settledHands.insert(disclose(handId));
+  payoutAttest.insert(
+    disclose(handId),
+    disclose(persistentHash<Vector<3, Bytes<32>>>([
+      pad(32, "nf:payout:"),
+      handId,
+      persistentHash<Uint<8>>(winner as Uint<8>)
+    ]))
+  );
+  handsSettled.increment(1);
+  return winner as Uint<8>;
+}

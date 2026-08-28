@@ -4,7 +4,7 @@
 // and no chain. If the packed values don't order real poker hands correctly,
 // the muck is unsound — a losing player could prove a winning rank.
 
-import { pureCircuits } from '../contracts/managed/handrank-tc/contract/index.js';
+import { pureCircuits } from '../contracts/managed/nightfold-tc/contract/index.js';
 
 const RANKS = '23456789TJQKA';
 const SUITS = 'shdc';
@@ -18,7 +18,7 @@ function card(str) {
 }
 
 const hand = (s) => s.split(' ').map(card);
-const value = (s) => pureCircuits.evaluate5(hand(s));
+const value = (s) => pureCircuits.handValue(hand(s));
 
 // Hands in strictly ascending strength. Each must evaluate above the previous.
 const ladder = [
@@ -44,7 +44,7 @@ let failures = 0;
 console.log('rank ladder — each row must beat the one above\n');
 let prev = -1n, prevName = null;
 for (const [name, cards] of ladder) {
-  const v = pureCircuits.evaluate5(hand(cards));
+  const v = pureCircuits.handValue(hand(cards));
   const ok = v > prev;
   if (!ok) failures++;
   console.log(
