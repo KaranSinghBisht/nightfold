@@ -1,0 +1,102 @@
+.ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  min-height: 100%;
+}
+
+.ledger__head { display: flex; flex-direction: column; gap: 3px; }
+
+.ledger__title {
+  font-family: var(--display);
+  font-size: 1.3rem;
+  font-weight: 400;
+  line-height: 1.1;
+}
+.ledger__sub { margin: 0; font-size: .82rem; color: var(--muted); }
+
+.ledger__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1;
+}
+
+.ledger__idle {
+  font-family: var(--mono);
+  font-size: .75rem;
+  color: var(--muted);
+  padding: 10px 0;
+}
+
+.ledger__row {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  grid-template-areas: 'chain label' 'chain detail';
+  gap: 1px 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  animation: rowIn .3s ease backwards;
+}
+
+.ledger__chain {
+  grid-area: chain;
+  align-self: start;
+  font-family: var(--mono);
+  font-size: .6rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding-top: 3px;
+}
+.ledger__chain--midnight { color: var(--brass); }
+.ledger__chain--base     { color: var(--base-blue); }
+.ledger__chain--solana   { color: var(--sol-purple); }
+
+.ledger__label {
+  grid-area: label;
+  font-size: .78rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.ledger__detail {
+  grid-area: detail;
+  font-size: .78rem;
+  color: var(--ink-dim);
+  word-break: break-word;
+}
+
+/* opaque rows read as sealed, not as data waiting to be decoded */
+.ledger__detail--opaque {
+  font-family: var(--mono);
+  color: var(--muted);
+  font-size: .74rem;
+}
+
+.ledger__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 14px;
+  border-top: 1px solid var(--sealed);
+}
+.ledger__never {
+  font-family: var(--mono);
+  font-size: .6rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--sealed);
+}
+.ledger__nevervalue { font-size: .84rem; color: var(--ink-dim); }
+
+@keyframes rowIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: none; }
+}

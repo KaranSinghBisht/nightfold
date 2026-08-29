@@ -14,7 +14,7 @@ const STATUS_TEXT: Record<Seat['status'], string> = {
   committed: 'cards committed',
   revealed: 'showed',
   beat: 'beats it — rank not published',
-  mucked: 'mucked',
+  mucked: 'mucked — revealed nothing',
   won: 'winner',
 };
 
@@ -58,13 +58,13 @@ export function SeatPanel({ seat, isYou }: Props) {
         )}
       </footer>
 
-      {seat.handName && (
-        <p className="seat__hand">
-          {mucked ? 'held ' : ''}
-          {seat.handName}
-          {mucked && <span className="seat__never"> — never published</span>}
+      {mucked ? (
+        <p className="seat__hand seat__never">
+          conceded — no cards, no rank, nothing on any chain
         </p>
-      )}
+      ) : seat.handName ? (
+        <p className="seat__hand">{seat.handName}</p>
+      ) : null}
 
       <span className="seat__chainlabel eyebrow">{chain.label}</span>
     </section>

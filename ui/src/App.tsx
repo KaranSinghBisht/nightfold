@@ -1,122 +1,97 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useCallback, useEffect, useState } from 'react';
+import { STEPS, LAST_STEP } from './game/script';
+import { PHASE_LABEL } from './game/types';
+import { SeatPanel } from './components/SeatPanel';
+import { PlayingCard } from './components/PlayingCard';
+import { LedgerView } from './components/LedgerView';
+import './layout.css';
 
-function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+/** Deep-link a beat: ?step=6 jumps straight to the showdown. */
+function initialStep(): number {
+  const n = Number(new URLSearchParams(window.location.search).get('step'));
+  return Number.isInteger(n) && n >= 0 && n <= LAST_STEP ? n : 0;
 }
 
-export default App
+export default function App() {
+  const [step, setStep] = useState(initialStep);
+  const hand = STEPS[step];
+
+  const next = useCallback(() => setStep((s) => Math.min(s + 1, LAST_STEP)), []);
+  const prev = useCallback(() => setStep((s) => Math.max(s - 1, 0)), []);
+
+  // Arrow keys drive the demo so nothing has to be clicked on camera.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+      if (e.key === 'r') setStep(0);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [next, prev]);
+
+  return (
+    <div className="app">
+      <header className="app__head">
+        <div className="app__brand">
+          <h1 className="app__title">Nightfold</h1>
+          <p className="app__tag">The loser never shows their cards.</p>
+        </div>
+        <div className="app__meta">
+          <span className="app__hand mono">hand {hand.handId}</span>
+          <span className="app__phase">{PHASE_LABEL[hand.phase]}</span>
+        </div>
+      </header>
+
+      <main className="app__main">
+        <div className="app__table">
+          <SeatPanel seat={hand.seats[0]} isYou={hand.you === 0} />
+
+          <section className="felt">
+            <span className="felt__label eyebrow">board · public by the rules of poker</span>
+            <div className="felt__cards">
+              {hand.board.length === 0
+                ? <span className="felt__empty">no cards yet</span>
+                : hand.board.map((c, i) => (
+                    <PlayingCard key={`${c.rank}${c.suit}`} card={c} size="md" delay={i * 70} />
+                  ))}
+            </div>
+            <div className="felt__pot">
+              <span className="eyebrow">pot</span>
+              <span className="felt__potvalue mono">{hand.pot} ETH</span>
+              {hand.winner !== undefined && (
+                <span className="felt__winner">
+                  → {hand.winner === 2 ? 'split' : hand.seats[hand.winner].name}
+                </span>
+              )}
+            </div>
+          </section>
+
+          <SeatPanel seat={hand.seats[1]} isYou={hand.you === 1} />
+        </div>
+
+        <LedgerView events={hand.events} />
+      </main>
+
+      <footer className="app__foot">
+        <div className="app__steps">
+          {STEPS.map((_, i) => (
+            <button
+              key={i}
+              className={`app__dot${i === step ? ' app__dot--on' : ''}`}
+              onClick={() => setStep(i)}
+              aria-label={`step ${i + 1}`}
+            />
+          ))}
+        </div>
+        <div className="app__nav">
+          <button className="app__btn" onClick={prev} disabled={step === 0}>back</button>
+          <button className="app__btn app__btn--primary" onClick={next} disabled={step === LAST_STEP}>
+            {step === LAST_STEP ? 'hand complete' : 'next'}
+          </button>
+        </div>
+        <span className="app__hint mono">← → to step · r to reset</span>
+      </footer>
+    </div>
+  );
+}

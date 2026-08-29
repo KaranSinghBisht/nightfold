@@ -78,20 +78,20 @@ export const STEPS: HandState[] = [
     ],
   })),
 
-  // 6 — showdown. Alice shows. Bob proves he beats it WITHOUT publishing his
-  // own rank, so the chain learns the comparison and nothing about how.
+  // 6 — showdown. Bob shows his flush. Alice cannot beat it, so she mucks:
+  // she concedes without proving a rank, a card, or anything at all.
   {
     ...base(),
     phase: 'showdown',
     pot: '0.52',
     board: BOARD,
     seats: [
-      { ...base().seats[0], status: 'revealed', hole: ALICE_HOLE, rank: 2169397, handName: 'two pair, aces and kings' },
-      { ...base().seats[1], status: 'beat' },
+      { ...base().seats[0], status: 'mucked', hole: ALICE_HOLE },
+      { ...base().seats[1], status: 'revealed', rank: 4327921, handName: 'flush, queen high' },
     ],
     events: [
-      { chain: 'midnight', label: 'revealHand', detail: 'seat 0 shows → rank 2169397' },
-      { chain: 'midnight', label: 'beatShownRank', detail: 'seat 1 beats 2169397 · rank not published', opaque: true },
+      { chain: 'midnight', label: 'revealHand', detail: 'seat 1 shows → rank 4327921' },
+      { chain: 'midnight', label: 'muckHand', detail: 'seat 0 concedes · nothing published', opaque: true },
     ],
   },
 
@@ -103,10 +103,10 @@ export const STEPS: HandState[] = [
     board: BOARD,
     winner: 1,
     seats: [
-      // Alice showed, so her rank is public — that was her choice.
-      { ...base().seats[0], status: 'mucked', rank: 2169397, handName: 'two pair, aces and kings' },
-      // Bob won without ever publishing a rank or a card.
-      { ...base().seats[1], status: 'won' },
+      // Alice mucked. No rank, no cards, no record of what she held — ever.
+      { ...base().seats[0], status: 'mucked' },
+      // Bob showed to take the pot, which is what a winner does.
+      { ...base().seats[1], status: 'won', rank: 4327921, handName: 'flush, queen high' },
     ],
     events: [
       { chain: 'midnight', label: 'settle', detail: 'winner seat 1 · attestation 9c4e11a7…', opaque: true },
