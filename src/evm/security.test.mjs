@@ -9,7 +9,7 @@ import { createWalletClient, createPublicClient, http, parseEther, formatEther, 
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
 import { compileContract } from './compile.mjs';
-import { watcherAddresses, signCredit } from './watchers.mjs';
+import { watcherAddresses, signCredit, signSettle } from './watchers.mjs';
 
 const RPC = process.env.RPC_URL ?? 'http://127.0.0.1:8545';
 
@@ -131,6 +131,9 @@ function chipsOf(wei, rate) { return (wei * rate) / (10n ** 18n); }
 console.log('\nNF-006 — escrow paid whatever winner the relayer named\n');
 {
   const addr = await deploy(escrow, [acct.relayer.address]);
+  await wait(await wallet('deployer').writeContract({
+    address: addr, abi: escrow.abi, functionName: 'setWatchers', args: [watcherAddresses, 2n],
+  }));
   const call = (who, fn, args, value) =>
     wallet(who).writeContract({ address: addr, abi: escrow.abi, functionName: fn, args, ...(value ? { value } : {}) });
   const read = (fn, args) => pub.readContract({ address: addr, abi: escrow.abi, functionName: fn, args });
@@ -140,22 +143,34 @@ console.log('\nNF-006 — escrow paid whatever winner the relayer named\n');
   await wait(await call('alice', 'openHand', [handId], STAKE));
   await wait(await call('bob', 'joinHand', [handId], STAKE));
 
-  // The audit passed an invented attestation and the escrow paid.
+  const sign = (winner, count = 2) => signSettle({ chainId: 31337n, escrow: addr, handId, winner }, count);
+
+  // The first audit's version: an invented attestation. Rejected then, and
+  // still rejected — but the re-audit showed that check was never the point,
+  // because the relayer could just ask the contract for the right answer.
   check('an invented attestation is rejected',
-        await reverts(() => call('relayer', 'proposeSettlement', [handId, 1, keccak256(toHex('made up'))])),
-        'must equal H("nf:payout:", handId, H(winner))');
-  check('a zero attestation is rejected',
-        await reverts(() => call('relayer', 'proposeSettlement', [handId, 1, `0x${'0'.repeat(64)}`])));
+        await reverts(() => call('relayer', 'proposeSettlement', [handId, 1, []])));
 
-  // An attestation for the WRONG winner cannot be used to pay the other seat.
-  const attFor0 = await read('expectedAttestation', [handId, 0]);
-  check('an attestation for seat 0 cannot settle seat 1',
-        await reverts(() => call('relayer', 'proposeSettlement', [handId, 1, attFor0])),
-        'the attestation commits to the winner');
+  // RA-002 is the real one: the relayer computing the expected value itself
+  // and handing it back. It now needs signatures from keys it does not hold.
+  check('the relayer cannot settle on its own signature',
+        await reverts(async () => {
+          const digest = await read('settleDigest', [handId, 1]);
+          const own = await wallet('relayer').signMessage({ message: { raw: digest } });
+          return call('relayer', 'proposeSettlement', [handId, 1, [own]]);
+        }),
+        'knowing the digest is no longer sufficient');
 
-  const attFor1 = await read('expectedAttestation', [handId, 1]);
-  await wait(await call('relayer', 'proposeSettlement', [handId, 1, attFor1]));
-  check('a matching attestation is accepted', Number((await read('hands', [handId]))[5]) === 3);
+  // Signatures for the WRONG winner cannot be used to pay the other seat.
+  check('a quorum for seat 0 cannot settle seat 1',
+        await reverts(async () => call('relayer', 'proposeSettlement', [handId, 1, await sign(0)])),
+        'the digest commits to the winner');
+
+  check('one watcher is not a quorum',
+        await reverts(async () => call('relayer', 'proposeSettlement', [handId, 1, await sign(1, 1)])));
+
+  await wait(await call('relayer', 'proposeSettlement', [handId, 1, await sign(1)]));
+  check('a quorum-signed settlement is accepted', Number((await read('hands', [handId]))[5]) === 3);
 
   check('funds are not payable during the challenge window',
         await reverts(() => call('alice', 'finaliseSettlement', [handId])));
@@ -164,7 +179,7 @@ console.log('\nNF-006 — escrow paid whatever winner the relayer named\n');
   await wait(await call('alice', 'finaliseSettlement', [handId]));
   check('bob is credited after the window',
         (await read('withdrawable', [acct.bob.address])) === STAKE * 2n);
-  check('a stranger cannot settle', await reverts(() => call('mallory', 'proposeSettlement', [handId, 0, attFor0])));
+  check('a stranger cannot settle', await reverts(async () => call('mallory', 'proposeSettlement', [handId, 0, await sign(0)])));
 }
 
 // ---- NF-008: a rejecting seat blocked refunds -------------------------------
@@ -172,6 +187,9 @@ console.log('\nNF-006 — escrow paid whatever winner the relayer named\n');
 console.log('\nNF-008 — a rejecting seat trapped the honest stake\n');
 {
   const addr = await deploy(escrow, [acct.relayer.address]);
+  await wait(await wallet('deployer').writeContract({
+    address: addr, abi: escrow.abi, functionName: 'setWatchers', args: [watcherAddresses, 2n],
+  }));
   const hostile = await deploy(rejecting, []);
 
   const handId = keccak256(toHex('hand:nf008'));
@@ -211,6 +229,6 @@ console.log('\nNF-008 — a rejecting seat trapped the honest stake\n');
 }
 
 console.log(failures === 0
-  ? '\nevery confirmed EVM exploit is now rejected'
+  ? '\nboth audits\' EVM exploits are rejected — see check:exploits for the terminal proofs'
   : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

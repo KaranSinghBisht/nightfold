@@ -54,3 +54,34 @@ export async function signCredit(rc, count = 2, signers = watchers) {
   signed.sort((a, b) => (a.address < b.address ? -1 : 1));
   return signed.map((s) => s.sig);
 }
+
+const SETTLE_ABI = [
+  { type: 'string' }, { type: 'uint256' }, { type: 'address' },
+  { type: 'bytes32' }, { type: 'uint8' },
+];
+
+/** The same bytes NightfoldEscrow.settleDigest produces. */
+export function settleDigest({ chainId, escrow, handId, winner }) {
+  return keccak256(
+    encodeAbiParameters(SETTLE_ABI, ['nf:settle:v1', chainId, escrow, handId, winner]),
+  );
+}
+
+/**
+ * Sign a settlement.
+ *
+ * RA-002: the relayer used to compute the escrow's expected value itself and
+ * hand it back, which is not verification of anything. These signatures come
+ * from keys the relayer does not hold, which is the whole point.
+ */
+export async function signSettle(params, count = 2, signers = watchers) {
+  const digest = settleDigest(params);
+  const signed = await Promise.all(
+    signers.slice(0, count).map(async (w) => ({
+      address: w.address.toLowerCase(),
+      sig: await w.signMessage({ message: { raw: digest } }),
+    })),
+  );
+  signed.sort((a, b) => (a.address < b.address ? -1 : 1));
+  return signed.map((s) => s.sig);
+}

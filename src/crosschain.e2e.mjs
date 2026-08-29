@@ -16,6 +16,7 @@ import { randomBytes } from 'node:crypto';
 import { Contract, ledger, pureCircuits } from '../contracts/managed/nightfold-tc/contract/index.js';
 import { cards, showHand } from './witnesses.mjs';
 import { newTable, call as mnCall, dealHand, stage, emptyPS } from './testkit.mjs';
+import { watcherAddresses, signSettle } from './evm/watchers.mjs';
 import { compileEscrow } from './evm/compile.mjs';
 import { readOutcome, relayHand, hex } from './relayer.mjs';
 
@@ -51,6 +52,10 @@ const { abi, bytecode } = compileEscrow();
 const { contractAddress: escrow } = await wait(
   await wallet('deployer').deployContract({ abi, bytecode, args: [acct.relayer.address] })
 );
+// Watchers read Midnight independently; the relayer only carries what they sign.
+await wait(await wallet('deployer').writeContract({
+  address: escrow, abi, functionName: 'setWatchers', args: [watcherAddresses, 2n],
+}));
 const jump = async (secs) => {
   for (const [method, params] of [['evm_increaseTime', [secs]], ['evm_mine', []]]) {
     await fetch(RPC, { method: 'POST', headers: { 'content-type': 'application/json' },
@@ -98,11 +103,13 @@ check('relayer names seat 0 as winner', outcome.winner === 0);
 
 const relayed = await relayHand(outcome, {
   base: async (id, winner) => {
-    // The escrow recomputes the attestation itself; the relayer cannot name a
-    // winner the hand did not produce (NF-006).
-    const att = await pub.readContract({ address: escrow, abi, functionName: 'expectedAttestation', args: [id, winner] });
+    // RA-002: this used to ask the escrow for the value it expected and hand
+    // it straight back, which proves nothing — the relayer could do that for
+    // any winner it liked. The settlement now carries signatures from watchers
+    // that read Midnight themselves; the relayer only delivers them.
+    const sigs = await signSettle({ chainId: 31337n, escrow, handId: id, winner }, 2);
     return wait(await wallet('relayer').writeContract({
-      address: escrow, abi, functionName: 'proposeSettlement', args: [id, winner, att],
+      address: escrow, abi, functionName: 'proposeSettlement', args: [id, winner, sigs],
     }));
   },
 });

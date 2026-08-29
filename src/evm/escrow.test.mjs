@@ -9,6 +9,7 @@
 import { createWalletClient, createPublicClient, http, parseEther, formatEther, keccak256, toHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
+import { watcherAddresses, signSettle } from './watchers.mjs';
 import { compileEscrow } from './compile.mjs';
 
 const RPC = process.env.RPC_URL ?? 'http://127.0.0.1:8545';
@@ -42,6 +43,14 @@ const { abi, bytecode } = compileEscrow();
 const { contractAddress: escrow } = await wait(
   await wallet('deployer').deployContract({ abi, bytecode, args: [acct.relayer.address] })
 );
+// Two of three watchers must sign any settlement; the relayer is not one.
+await wait(await wallet('deployer').writeContract({
+  address: escrow, abi, functionName: 'setWatchers', args: [watcherAddresses, 2n],
+}));
+
+const sign = (handId, winner, count = 2) =>
+  signSettle({ chainId: 31337n, escrow, handId, winner }, count);
+
 console.log(`escrow deployed at ${escrow}`);
 console.log(`relayer          ${acct.relayer.address}\n`);
 
@@ -64,12 +73,14 @@ await wait(await call('bob', 'joinHand', [handId], STAKE));
 check('bob joined, hand is funded', Number((await read('hands', [handId]))[5]) === 2);
 
 check('a stranger cannot propose a settlement',
-      await reverts(() => call('mallory', 'proposeSettlement', [handId, 1, keccak256(toHex('x'))])));
+      await reverts(async () => call('mallory', 'proposeSettlement', [handId, 1, await sign(handId, 1)])));
 check('a player cannot settle their own hand',
-      await reverts(() => call('alice', 'proposeSettlement', [handId, 0, keccak256(toHex('x'))])));
+      await reverts(async () => call('alice', 'proposeSettlement', [handId, 0, await sign(handId, 0)])));
 
-const att = await read('expectedAttestation', [handId, 1]);
-await wait(await call('relayer', 'proposeSettlement', [handId, 1, att]));
+check('the relayer alone cannot settle',
+      await reverts(() => call('relayer', 'proposeSettlement', [handId, 1, []])),
+      'RA-002: a quorum it is not part of has to sign');
+await wait(await call('relayer', 'proposeSettlement', [handId, 1, await sign(handId, 1)]));
 check('the relayer proposes a matching outcome', Number((await read('hands', [handId]))[5]) === 3);
 check('nobody is paid during the challenge window',
       (await read('withdrawable', [acct.bob.address])) === 0n);
@@ -84,15 +95,14 @@ const before = await pub.getBalance({ address: acct.bob.address });
 await wait(await call('bob', 'withdraw', []));
 check('bob pulls his winnings', (await pub.getBalance({ address: acct.bob.address })) > before);
 check('cannot settle twice',
-      await reverts(() => call('relayer', 'proposeSettlement', [handId, 0, att])));
+      await reverts(async () => call('relayer', 'proposeSettlement', [handId, 0, await sign(handId, 0)])));
 
 // ---- a split pot -----------------------------------------------------------
 
 const splitId = keccak256(toHex('nightfold:hand:split'));
 await wait(await call('alice', 'openHand', [splitId], STAKE));
 await wait(await call('bob', 'joinHand', [splitId], STAKE));
-const splitAtt = await read('expectedAttestation', [splitId, 2]);
-await wait(await call('relayer', 'proposeSettlement', [splitId, 2, splitAtt]));
+await wait(await call('relayer', 'proposeSettlement', [splitId, 2, await sign(splitId, 2)]));
 await jump(601);
 await wait(await call('bob', 'finaliseSettlement', [splitId]));
 check('a split pot credits each seat its stake',
@@ -120,6 +130,35 @@ await wait(await call('alice', 'withdraw', []));
 await wait(await call('bob', 'withdraw', []));
 check('escrow holds nothing once every hand closes',
       (await pub.getBalance({ address: escrow })) === 0n);
+
+// ---- RA-002: the challenge window can now be challenged --------------------
+console.log('\na disputed settlement refunds instead of paying\n');
+{
+  const id = keccak256(toHex('nf:hand:disputed'));
+  await wait(await call('alice', 'openHand', [id], parseEther('0.05')));
+  await wait(await call('bob', 'joinHand', [id], parseEther('0.05')));
+  await wait(await call('relayer', 'proposeSettlement', [id, 0, await sign(id, 0)]));
+
+  check('a stranger cannot challenge',
+        await reverts(() => call('mallory', 'challenge', [id])));
+
+  // Bob thinks the reported winner is wrong. Before, there was a ten minute
+  // window with no way to act in it, so waiting paid the liar.
+  await wait(await call('bob', 'challenge', [id]));
+  check('a challenged hand cannot be finalised',
+        await reverts(() => call('bob', 'finaliseSettlement', [id])),
+        'the named winner is not paid');
+
+  await pub.request({ method: 'evm_increaseTime', params: ['0x1E848'] }); // 5 days
+  await pub.request({ method: 'evm_mine', params: [] });
+  await wait(await call('bob', 'timeout', [id]));
+
+  const a = await read('withdrawable', [acct.alice.address]);
+  const b = await read('withdrawable', [acct.bob.address]);
+  check('both stakes go back when a settlement is disputed',
+        a >= parseEther('0.05') && b >= parseEther('0.05'),
+        'a liar cannot be paid; the disagreement leaves the chain');
+}
 
 console.log(failures === 0 ? '\nescrow: all checks passed' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);
