@@ -50,6 +50,15 @@ what the table knows:         she is good for 400, and for 1,000, and not 1,001
 provable, one chip more is not, and a commitment to a stack you don't hold is
 refused at the door.
 
+**Where this stops, precisely.** These circuits are proven and tested, but
+`NightfoldTable` still holds chips in a public `mapping(address => uint256)`.
+The private stack is a working Midnight mechanism that the EVM betting contract
+does not yet consume, so on the deployed table a balance is still visible. Two
+things are missing to close it: the cage has to attest an opening balance
+(today `stackAmount()` is a witness the player chooses), and the table has to
+take a `proveCanCover` proof instead of reading a number. Neither is hard;
+both are more than one night.
+
 Meanwhile the chips come from wherever you already keep them — one player
 staking ETH on Base, the other SOL on Solana, at the same table.
 
@@ -181,9 +190,17 @@ whole contract still costs less than a JPEG thumbnail to deploy.
 
 ## Security
 
-Three passes: an audit, a re-audit, and an independent verification of the
-remediations. All three reports and their runnable proof-of-concepts are in
-`.superstack/security-reports/`.
+Four passes: an audit, a re-audit, an independent verification of the
+remediations, and a final sweep before deployment. The reports and their
+runnable proof-of-concepts are in `docs/audits/`. Those proof-of-concepts no
+longer succeed, which is the point — run one and it stops at the assertion that
+now refuses it.
+
+The fourth pass found the two worst bugs in the project, both in the newest
+contract: `NightfoldTable.deposit` minted chips to anyone who asked, and
+`NightfoldTable.settle` let a stranger name the winner, which made the Midnight
+showdown decorative. Both were executed before they were fixed, and both are
+regression tests now (`npm run check:table`).
 
 The third pass is the one worth reading, because it disproved a claim this
 README made. Every finding was reported as fixed; executed evidence drained the
@@ -280,7 +297,7 @@ src/
   evm/nfv.test.mjs       every verified exploit, run to the money
 ui/                      the landing page, the lobby and the table
 scripts/devnet.sh        starts the local stack in an order that works
-.superstack/             three security audits and their runnable evidence
+docs/audits/             the security reports and their runnable evidence
 ```
 
 ## Taking a seat

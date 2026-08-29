@@ -11,3 +11,10 @@ midnight-level-db/
 # Private witness stores — hole cards and salts live here
 .nightfold-state/
 .probe-state/
+
+# Internal tooling state, not part of the project
+.superstack/
+.claude/
+
+# Solidity build output — compiled fresh by src/evm/compile.mjs
+evm/out/
