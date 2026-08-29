@@ -66,7 +66,7 @@ export const LANES = [
   },
   {
     name: 'THE RELAYER',
-    text: 'Carries a proven outcome between them. It can stall — it cannot take the money or name a winner the hand did not produce.',
+    text: 'Carries the settled outcome between them. Today it is trusted to report it honestly: verifying a Midnight result on an EVM chain needs a bridge that does not exist yet. Named as a trust assumption, not a solved problem.',
   },
 ];
 

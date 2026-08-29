@@ -97,19 +97,32 @@ whole contract costs less than a JPEG thumbnail to deploy.
 
 ## Security
 
-Audited 2026-08-29: **10 findings, 5 critical**, four of them confirmed by
-executing them — a fabricated royal flush, a forced muck of someone else's seat,
-self-selected hole cards, and a drained cage.
+Two independent audits. The first found ten issues; eight are fixed and
+regression-tested. The second, on 2026-08-29, re-tested those and went further,
+confirming five criticals with executed proofs.
 
-**All ten are fixed**, and every confirmed exploit has a regression test that
-re-runs the attack and asserts it now fails. Full write-up, including what
-changed and why, in [`docs/security.md`](docs/security.md).
+**What is fixed and tested:** seat actions require per-seat authorisation,
+players cannot substitute hole cards or a caller-chosen board, `beatOpponent`
+reads the opponent's recorded rank, payouts are pull-based so a rejecting
+recipient cannot wedge anyone else, private state fails closed off the local
+devnet, images are digest-pinned, and unequal-stack all-ins terminate.
 
-The headline change: a hand is now **opened by the dealer** with commitments to
-the deck, the board and both seats' hole cards, plus a seat authorisation key
-per player. Nothing can be acted on until all of that is fixed, so a player
-cannot choose their cards, substitute a board, act for a seat they do not hold,
-or pick the threshold they must beat.
+**What is NOT fixed, and matters:**
+
+| | |
+|---|---|
+| Relayer can drain a cage | `creditRemote` trusts relayer-supplied fields; replay protection only stops reusing the same invented tuple. It can credit itself and cash out. |
+| Relayer can pick the winner | `expectedAttestation` is a pure function of `(handId, winner)`, so the relayer computes it for whichever winner it likes. The challenge window has no challenge function. |
+| Dealer can grind the deck | The dealer supplies its nonce after seeing both player seeds, and `deckCommit` is stored but never read. Nothing proves the dealt cards form one valid permutation. |
+| Oracle can compound moves | The 20% bound is per-post with no minimum interval, so a sequence of legal posts repriced a cage to near-zero float. |
+| Chips conserve per cage, not globally | Each deployment has its own ledger. One source deposit can be credited on two cages. |
+
+All five need a real cross-chain message protocol and a dealing scheme no last
+mover can grind — protocol design, not a patch. **Nightfold is a demonstration
+of what the muck buys you, not a system for real money.**
+
+`docs/security.md` and `.superstack/security-reports/` carry both audits in
+full, including the executed evidence for each finding.
 
 ## Limitations
 
@@ -139,7 +152,11 @@ pair, aces and kings, nine kicker." That is correct for a player choosing to
 show. `muckHand` and `beatShownRank` exist for players who don't want to.
 
 **The relayer can stall.** No EVM chain can verify a Midnight proof natively, so
-a relayer reports outcomes. It cannot take funds and cannot invent an outcome
+a relayer reports outcomes. It is TRUSTED to report them honestly — a
+2026-08-29 re-audit demonstrated it can name a winner the hand did not produce
+and can credit itself chips against a fabricated deposit. Both need a real
+cross-chain message, not a hash the relayer can recompute. Treat this as a
+trusted-relayer design until that exists. It cannot invent an outcome
 undetectably — the attestation is the exact bytes Midnight wrote, and anyone can
 compare. It *can* delay, so the escrow has a timeout that always returns both
 stakes.

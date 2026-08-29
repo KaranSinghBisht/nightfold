@@ -120,7 +120,7 @@ export function Cage() {
           <motion.div className="arcCage__ascii" {...reveal()}>
             <div className="arcCage__head">
               <span className="arcCage__headName">CAGE_LEDGER_#0A4F</span>
-              <span className="arcCage__headProof">CONSERVATION: PROVEN</span>
+              <span className="arcCage__headProof">CONSERVATION: PER CAGE</span>
             </div>
             <div className="arcCage__screen">
               <AsciiCage />
@@ -218,9 +218,12 @@ export function Lanes({ onPlay }: FootProps) {
           <div>
             <h3 className="arcFoot__title">POWERED BY MIDNIGHT · SIX MONEY CHAINS</h3>
             <p className="arcFoot__text">
-              Compact circuits hold the cards, fast chains hold the money, and one
-              relayer carries a proven outcome between them. It can stall. It cannot
-              steal, and it cannot name a winner the hand did not produce.
+              Compact circuits hold the cards and fast chains hold the money. The
+              relayer that carries an outcome between them is trusted today — an
+              independent audit demonstrated it can name a winner the hand did not
+              produce, because verifying a Midnight result on an EVM chain needs a
+              bridge nobody has built yet. docs/security.md records every finding,
+              including the ones still open.
             </p>
           </div>
           <div className="arcFoot__stats">
