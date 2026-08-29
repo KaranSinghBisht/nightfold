@@ -28,7 +28,7 @@ Nightfold settles a hand without either player's cards ever reaching a chain.
 Meanwhile the chips come from wherever you already keep them — one player
 staking ETH on Base, the other SOL on Solana, at the same table.
 
-## Three chains, each doing one job
+## Each chain does one job
 
 ```
   Base / Solana (public)              Midnight (private)
@@ -54,22 +54,35 @@ npm run check      # every suite below, no chain required
 
 | Suite | What it proves |
 |---|---|
-| `check:security` | every Compact exploit an external audit **confirmed** is now rejected |
-| `check:evmsec` | the cage drain, the escrow trust boundary, and the refund block are closed |
+| `check:nfv` | every exploit an independent verification pass **executed** against this repo is refused, and refused for the stated reason |
+| `check:exploits` | the re-audit's cage drains, followed to withdrawal rather than stopping at the first check |
+| `check:lifecycle` | the contract, the relayer and the UI give the same verdict for every ending in the matrix |
+| `check:security` | the first audit's Compact exploits, including a deal where both seats hold the same card |
+| `check:evmsec` | the relayer's authority boundary on both EVM contracts |
+| `check:pricing` | one USD table, so no chain can be arbitraged against another |
+| `check:chains` | six chains credit one chip ledger; each deposit is single-use |
 | `check:rank` | 22 ordered poker hands rank correctly |
 | `check:fuzz` | 20,000 random hands order identically to an independent reference evaluator |
 | `check:hand` | a full hand deals, reveals and settles; four cheating paths are rejected |
 | `check:muck` | a published rank is decoded to *demonstrate* the leak, then both private alternatives are shown to leave nothing behind |
-| `check:game` | heads-up betting rules, and dealing that anyone can verify afterwards |
-| `check:escrow` | the escrow's trust boundary — strangers and players cannot settle, a stalled relayer cannot trap funds |
-| `check:crosschain` | a private Midnight outcome moves real ETH, and the combined transcript is grepped for the losing cards |
+| `check:game` | heads-up betting, unequal-stack all-ins, and dealing anyone can verify afterwards |
+| `check:engine` | 400 hands of random legal play; chips conserved, no mucked card ever rendered |
+| `check:escrow` | strangers and players cannot settle; a stalled relayer cannot trap funds; a challenge costs a bond |
+| `check:crosschain` | a private Midnight outcome moves real ETH, and the transcript is grepped for the losing cards |
 
-Plus real ZK proofs against a local devnet:
+Real ZK proofs run against a local devnet:
 
 ```bash
 ./scripts/devnet.sh          # node, indexer, proof server
 npm run proof:real           # deploy + play a hand with real proofs
 ```
+
+**Be precise about what that last one has and has not shown.** The harness
+constructs the current contract and CI proves it does — an audit caught it
+silently targeting a removed API, which is why that check exists. The timings
+below come from earlier runs against an earlier version of the circuits. The
+deal circuit has since more than tripled in size, and those numbers have not
+been re-measured end to end on a devnet.
 
 ## Measured, not assumed
 
@@ -82,18 +95,27 @@ On the build machine, from 35 real proof runs plus fresh compiles:
 | Verifier key | 1,591 B | Flat regardless of complexity. Deploy cost is per *circuit*, never per gate. |
 | Midnight tx per hand | 5 | Deal and showdown are per player. |
 
-Circuit costs, measured:
+Circuit costs. Key sizes are measured from the current build; prove times are
+derived from the 0.70 s/MB rate above rather than re-timed, and are marked `~`
+for that reason.
 
-| Circuit | Prover key | Prove |
+| Circuit | Prover key | Prove (derived) |
 |---|---|---|
-| `openHand` | — | dealer fixes deck, board and both hands |
-| `revealHand` | ~10 MB | ~7.0s |
-| `beatOpponent` | ~10 MB | ~7.0s |
-| `muckHand` | ~2.8 MB | ~2.0s |
-| `settle` | ~10 MB | ~7.0s |
+| `beatOpponent` | 19.5 MB | ~13.7s |
+| `revealHand` | 19.5 MB | ~13.6s |
+| `openHand` | 19.5 MB | ~13.6s |
+| `settle` | 10.0 MB | ~7.0s |
+| `muckHand` | 5.2 MB | ~3.6s |
 
-Verifier keys are flat at ~2 KB per circuit regardless of complexity, so the
-whole contract costs less than a JPEG thumbnail to deploy.
+`openHand` is the expensive one, and it is expensive *on purpose*. It grew from
+5.2 MB to 19.5 MB when it started proving the deal is possible — that all
+nine dealt cards are real and distinct, and that the three published
+commitments open to exactly them. Before that check, two players could settle a
+hand while both holding the ace of spades, and every proof verified. Roughly ten
+seconds on the deal is what that costs.
+
+Verifier keys are flat at ~2.1 KB per circuit regardless of complexity, so the
+whole contract still costs less than a JPEG thumbnail to deploy.
 
 ## Security
 
@@ -147,6 +169,73 @@ unit over, at the cap, and one unit under.
 
 **Nightfold is a demonstration of what the muck buys you. Do not put real money
 in it.**
+
+## Layout
+
+```
+contracts/
+  HandRank.compact       five-card evaluator (module)
+  nightfold.compact      openHand, revealHand, beatOpponent, muckHand, settle
+evm/
+  NightfoldCage.sol      the chip ledger: buy in anywhere, cash out anywhere
+  NightfoldEscrow.sol    per-hand escrow, quorum settlement, bonded challenge
+src/
+  game/betting.mjs       heads-up no-limit betting
+  game/dealer.mjs        committed, verifiable dealing
+  game/lifecycle.mjs     ONE resolution rule, read by contract, relayer and UI
+  pricing.mjs            chips priced through USD so no chain can be arbitraged
+  witnesses.mjs          the one witness bundle every component uses
+  relayer.mjs            carries a Midnight outcome to N chains
+  evm/nfv.test.mjs       every verified exploit, run to the money
+ui/                      the landing page, the lobby and the table
+scripts/devnet.sh        starts the local stack in an order that works
+.superstack/             three security audits and their runnable evidence
+```
+
+## Taking a seat
+
+`#play` opens a lobby with two lanes, because the questions a first-time
+visitor has ("whose chips are these, do I need a wallet") deserve an answer
+before a hand starts rather than after.
+
+- **Guest table** — 1,000 house chips, dealt immediately, no wallet. Nothing is
+  deposited and nothing settles on a chain; the seat plate says `house chips`
+  rather than dressing them up as a deposit that never happened. The poker and
+  the muck, with the money left out.
+- **Cash table** — connect, pick one of six chains, deposit, and the cage
+  credits chips at the derived rate. Both seats are dealt the same stack,
+  because that is what the cage is for.
+
+`#play?demo=muck` and `#play?demo=showdown` skip the lobby and land on a frozen
+beat — the shot is the hand, not the entrance.
+
+## Running it
+
+```bash
+npm install                  # .npmrc pins legacy-peer-deps; the SDK needs it
+npm run compile              # compile the Compact contracts
+npm run check                # all suites, no chain needed
+
+./scripts/devnet.sh          # local Midnight devnet
+npm run proof:real           # real proofs
+
+npx anvil &                  # local EVM
+npm run check:escrow
+cd ui && npm run dev         # the table
+```
+
+Notes that cost us time, so they don't cost you any:
+
+- npm **silently skips** the Midnight SDK without `--legacy-peer-deps`.
+- Indexer 4.3.3 serves GraphQL at `/api/v3/graphql`; `/api/v1` returns a 308 the
+  wallet client does not follow, which presents as a 90s sync timeout.
+- The indexer dies with `Cannot construct OnlineClientAtBlock: block number 1
+  not found` unless the node has produced blocks first. `scripts/devnet.sh`
+  waits.
+- A local devnet degrades after roughly 600 blocks and wallet sync then stalls
+  silently. `./scripts/devnet.sh reset`.
+- Compact has no module-level `const`, no mutable locals, no `/` or `%`, and no
+  runtime vector indexing.
 
 ## Chains
 
@@ -203,7 +292,7 @@ honest limit, and `docs/security.md` records what the relayer can and cannot do.
 
 ## Licence
 
-MIT.
+MIT — see [LICENSE](LICENSE).
 
 Card art is Kenney's [Playing Cards Pack](https://kenney.nl/assets/playing-cards-pack),
 released CC0 and cropped to the 42x60 card. The hero background is React Bits'
