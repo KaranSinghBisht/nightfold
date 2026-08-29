@@ -8,6 +8,7 @@
 // Run with:  node ui/src/game/engine.test.mjs
 
 import { startHand, applyAction, resolveShowdown, view, legalActions } from './engine.ts';
+import { reveal } from './vault.ts';
 import { botAction, botShowdown } from './bot.ts';
 import { rankOf } from './rank.ts';
 
@@ -24,7 +25,9 @@ for (let i = 0; i < HANDS; i++) {
   let e = startHand(i % 2 === 0 ? 0 : 1, [START, START]);
 
   // Both hole cards must be distinct real cards, and distinct from the board.
-  const all = [...e.hole[0], ...e.hole[1], ...e.board];
+  // Seat 1's cards live in the vault now (RA-015), so the test opens it the
+  // same way a show does rather than reading them out of engine state.
+  const all = [...e.hole[0], ...(reveal(e.handId) ?? []), ...e.board];
   check('9 distinct cards dealt', new Set(all).size === 9, `hand ${i}`);
 
   let guard = 0;

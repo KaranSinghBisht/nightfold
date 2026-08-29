@@ -11,7 +11,7 @@
   "scripts": {
     "compile": "compact compile contracts/nightfold.compact contracts/managed/nightfold",
     "typecheck": "compact compile --skip-zk contracts/nightfold.compact contracts/managed/nightfold-tc",
-    "test": "NODE_OPTIONS='--experimental-vm-modules' vitest run",
+    "test": "npm run check",
     "proof:up": "docker compose up -d --wait proof-server",
     "env:up": "docker compose up -d --wait",
     "env:down": "docker compose down",

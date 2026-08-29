@@ -1,0 +1,49 @@
+# RA-016: the suite existed but nothing enforced it, and `npm test` was a dead
+# script pointing at a vitest that was never installed. Both fixed here.
+name: check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install foundry (anvil)
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install Compact
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+          echo "$HOME/.compact/bin" >> "$GITHUB_PATH"
+
+      - run: npm ci
+      - run: npm ci --prefix ui --legacy-peer-deps
+
+      - name: Start anvil
+        run: anvil --port 8545 --silent &
+
+      # The generated artifacts must match the source they claim to come from,
+      # or `proof:real` and the tests can be exercising different contracts
+      # (RA-012).
+      - name: Contracts are freshly generated
+        run: |
+          npm run compile
+          git diff --exit-code contracts/managed || {
+            echo "::error::contracts/managed is stale — run npm run compile and commit"
+            exit 1
+          }
+
+      - run: npm test
+      - run: npm run build --prefix ui
+      - run: npm audit --omit=dev --audit-level=high || true

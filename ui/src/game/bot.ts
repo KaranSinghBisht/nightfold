@@ -5,6 +5,7 @@
 // AI, and a bot that plays plausibly is enough to make a hand watchable.
 
 import type { Action, Engine } from './engine';
+import { rankSealed } from './vault';
 import { legalActions } from './engine';
 
 interface Legal {
@@ -45,7 +46,9 @@ export function botAction(e: Engine): Action {
 
 /** At showdown the bot shows if it thinks it won, and mucks otherwise. */
 export function botShowdown(e: Engine, rankOf: (ids: number[]) => number): 'show' | 'muck' {
-  const mine = rankOf([...e.hole[1], ...e.board]);
+  // The bot asks the vault what it ranks; it never handles the cards, and
+  // neither does anything the UI can reach (RA-015).
+  const mine = rankSealed(e.handId, e.board, rankOf);
   const theirs = rankOf([...e.hole[0], ...e.board]);
   // Losing hands muck — which is exactly the behaviour Nightfold makes private.
   return mine >= theirs ? 'show' : 'muck';

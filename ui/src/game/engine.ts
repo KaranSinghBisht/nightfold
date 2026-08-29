@@ -16,6 +16,7 @@ import { newHand, act as bet, legalActions, payout, endedOnFold } from '@shared/
 import { commitSeed, commitNonce, deal, cardName } from '@shared/game/dealer.mjs';
 
 import type { Card, Chain as ChainId, LedgerEvent, Seat, Phase } from './types';
+import { seal, rankSealed, reveal } from './vault';
 
 export type Action =
   | { type: 'fold' }
@@ -35,7 +36,11 @@ function toCard(id: number): Card {
 export interface Engine {
   handId: string;
   phase: Phase;
-  /** both hands live here; `view()` decides what a seat may see */
+  /**
+   * ONLY the local player's cards. The opponent's are sealed in ./vault and
+   * never enter this object, so they cannot be read out of React state
+   * (RA-015).
+   */
   hole: [number[], number[]];
   board: number[];
   /** which chain each seat bought its chips on */
@@ -66,10 +71,14 @@ export function startHand(
   const n = commitNonce();
   const d = deal(a.seed, b.seed, { a: a.commitment, b: b.commitment, n: n.commitment }, n.nonce);
 
+  const handId = '0x' + shortHex(d.deckCommitment, 12).replace('…', '');
+  // The opponent's cards go into the vault, not into this object.
+  seal(handId, d.hole[1]);
+
   return {
-    handId: '0x' + shortHex(d.deckCommitment, 12).replace('…', ''),
+    handId,
     phase: 'dealt',
-    hole: [d.hole[0], d.hole[1]],
+    hole: [d.hole[0], []],
     board: d.board,
     revealed: 0,
     betting: newHand({ stackA: stacks[0], stackB: stacks[1], button }),
@@ -128,7 +137,9 @@ export function resolveShowdown(e: Engine, seat: 0 | 1, choice: Showdown, rankOf
   const events = [...e.events];
 
   if (choice === 'show') {
-    const rank = rankOf([...e.hole[seat], ...e.board]);
+    // Seat 1's cards live in the vault; showing is the one path that opens it.
+    const own = seat === 0 ? e.hole[0] : (reveal(e.handId) ?? []);
+    const rank = rankOf([...own, ...e.board]);
     events.push({ chain: 'midnight', label: 'revealHand', detail: `seat ${seat} shows → rank ${rank}` });
   } else {
     events.push({ chain: 'midnight', label: 'muckHand', detail: `seat ${seat} concedes`, opaque: true, masked: ['cards', 'rank'] });
@@ -156,7 +167,7 @@ function decide(e: Engine, rankOf: (ids: number[]) => number): Engine {
   else if (s1 === 'muck') winner = 0;
   else {
     const r0 = rankOf([...e.hole[0], ...e.board]);
-    const r1 = rankOf([...e.hole[1], ...e.board]);
+    const r1 = rankSealed(e.handId, e.board, rankOf);
     winner = r0 > r1 ? 0 : r1 > r0 ? 1 : 2;
   }
   return settle({ ...e, phase: 'settled', winner });
