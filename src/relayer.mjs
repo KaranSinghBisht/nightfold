@@ -53,7 +53,10 @@ export function readOutcome(ledgerView, handId, seatKeyOf) {
   // Every seat must have acted, or the hand could not have settled.
   if (!(shown0 || muck0 || beat0) || !(shown1 || muck1 || beat1)) return null;
 
-  const winner = muck1 ? 0
+  // Same ordering bug as the contract had (RA-009): both-muck must split, not
+  // fall through to seat 0. The comment above already said so.
+  const winner = (muck0 && muck1) ? 2
+    : muck1 ? 0
     : muck0 ? 1
     : beat0 ? 0
     : beat1 ? 1

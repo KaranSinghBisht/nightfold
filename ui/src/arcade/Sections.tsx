@@ -218,12 +218,14 @@ export function Lanes({ onPlay }: FootProps) {
           <div>
             <h3 className="arcFoot__title">POWERED BY MIDNIGHT · SIX MONEY CHAINS</h3>
             <p className="arcFoot__text">
-              Compact circuits hold the cards and fast chains hold the money. The
-              relayer that carries an outcome between them is trusted today — an
-              independent audit demonstrated it can name a winner the hand did not
-              produce, because verifying a Midnight result on an EVM chain needs a
-              bridge nobody has built yet. docs/security.md records every finding,
-              including the ones still open.
+              Compact circuits hold the cards and fast chains hold the money. Two
+              audits found eighteen issues between them; all are fixed, each with a
+              regression test that runs the exploit to the money rather than stopping
+              at the first check. What remains is a trust assumption rather than a
+              bug: a settlement needs a signing quorum the relayer is not part of,
+              and either player can dispute one — but verifying a Midnight result on
+              an EVM chain needs a bridge nobody has built yet, so a colluding quorum
+              is still possible. The README says so plainly.
             </p>
           </div>
           <div className="arcFoot__stats">

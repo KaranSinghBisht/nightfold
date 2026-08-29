@@ -360,7 +360,13 @@ export circuit settle(handId: Bytes<32>): Uint<8> {
   assert(!(beat0 && beat1), "both seats claim the beat");
 
   // 0 = seat 0, 1 = seat 1, 2 = split.
-  const winner = muck1 ? 0
+  //
+  // RA-009: both-muck used to fall through `muck1 ? 0` and hand the pot to
+  // seat 0 — by the ORDER of the conditions, not by any rule, while the
+  // comments and the UI both said split. If neither seat will claim the pot,
+  // neither seat takes it.
+  const winner = (muck0 && muck1) ? 2
+               : muck1 ? 0
                : muck0 ? 1
                : beat0 ? 0
                : beat1 ? 1

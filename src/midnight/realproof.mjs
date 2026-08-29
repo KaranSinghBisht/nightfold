@@ -72,20 +72,36 @@ async function main() {
   logger.info(`deployed in ${deploySecs.toFixed(1)}s at ${address}`);
 
   // ---- one hand, on chain ----
-  const handId = randomBytes(32);
+  //
+  // RA-012: this harness used to call commitDeal and read holeCommits, neither
+  // of which the contract has had since the first audit. It was proving a
+  // contract that no longer existed, which made "real ZK validated" mean
+  // nothing. It now opens a hand the way the hardened contract requires.
   const board = cards('Ah Kd 7c 3c 9c');
-  const alice = { seat: 0n, hole: cards('As Kc'), ps: emptyPrivateState() };
-  const bob = { seat: 1n, hole: cards('Qc 5c'), ps: emptyPrivateState() };
+  const boardSalt = randomBytes(32);
+  const alice = { seat: 0n, hole: cards('As Kc'), ps: { ...emptyPrivateState(), boardSalt } };
+  const bob = { seat: 1n, hole: cards('Qc 5c'), ps: { ...emptyPrivateState(), boardSalt } };
+
+  const pc = nightfold.pureCircuits;
+  const deckCommit = randomBytes(32);
+  const boardCommit = pc.boardCommitment(board, boardSalt);
+  const hole0Commit = pc.holeCommitment(alice.hole, alice.ps.salt);
+  const hole1Commit = pc.holeCommitment(bob.hole, bob.ps.salt);
+  const seat0Key = pc.seatAuthKey(alice.ps.secret);
+  const seat1Key = pc.seatAuthKey(bob.ps.secret);
+  // The id binds its own setup, so it cannot be claimed with other content.
+  const handId = pc.handIdFor(deckCommit, boardCommit, hole0Commit, hole1Commit, seat0Key, seat1Key);
 
   logger.info(`board ${showHand(board)}`);
 
-  for (const p of [alice, bob]) {
-    p.ps = stage(p.ps, { hole: p.hole });
-    await proved(`commitDeal seat ${p.seat}`, providers, deployed, 'commitDeal', p.ps, handId, p.seat);
-  }
+  await proved('openHand', providers, deployed, 'openHand', alice.ps,
+    handId, deckCommit, boardCommit, hole0Commit, hole1Commit, seat0Key, seat1Key);
+
+  alice.ps = stage(alice.ps, { hole: alice.hole });
+  bob.ps = stage(bob.ps, { hole: bob.hole });
 
   // Bob shows; Alice mucks and reveals nothing.
-  const bBest = bestFive(bob.hole, board, (h) => nightfold.pureCircuits.handValue(h));
+  const bBest = bestFive(bob.hole, board, (h) => pc.handValue(h));
   bob.ps = stage(bob.ps, { claimed: bBest.hand, pick: bBest.idx });
   await proved('revealHand seat 1', providers, deployed, 'revealHand', bob.ps, handId, bob.seat, board);
   await proved('muckHand seat 0', providers, deployed, 'muckHand', alice.ps, handId, alice.seat);
@@ -94,7 +110,7 @@ async function main() {
   // ---- read the ledger back from the indexer ----
   const state = await providers.publicDataProvider.queryContractState(address);
   const l = nightfold.ledger(state.data);
-  logger.info(`ledger: ${l.holeCommits.size()} commitments, ${l.shownRanks.size()} rank, ` +
+  logger.info(`ledger: ${l.hands.size()} hand, ${l.shownRanks.size()} rank, ` +
               `${l.muckedSeats.size()} muck, ${l.settledHands.size()} settled`);
 
   console.log('\n  real proving times on a local devnet');

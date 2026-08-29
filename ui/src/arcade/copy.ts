@@ -66,7 +66,7 @@ export const LANES = [
   },
   {
     name: 'THE RELAYER',
-    text: 'Carries the settled outcome between them. Today it is trusted to report it honestly: verifying a Midnight result on an EVM chain needs a bridge that does not exist yet. Named as a trust assumption, not a solved problem.',
+    text: 'Carries a settlement a quorum it is not part of has signed, and either player can dispute one. A colluding quorum is still possible — that is a trust assumption, named rather than hidden.',
   },
 ];
 

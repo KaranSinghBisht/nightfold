@@ -97,32 +97,58 @@ whole contract costs less than a JPEG thumbnail to deploy.
 
 ## Security
 
-Two independent audits. The first found ten issues; eight are fixed and
-regression-tested. The second, on 2026-08-29, re-tested those and went further,
-confirming five criticals with executed proofs.
+Two independent audits. The first found ten issues; the second, on 2026-08-29,
+re-tested those and went further, confirming five criticals with executed
+proofs. Both reports are in `.superstack/security-reports/`, including the
+evidence for every finding.
 
-**What is fixed and tested:** seat actions require per-seat authorisation,
-players cannot substitute hole cards or a caller-chosen board, `beatOpponent`
-reads the opponent's recorded rank, payouts are pull-based so a rejecting
-recipient cannot wedge anyone else, private state fails closed off the local
-devnet, images are digest-pinned, and unequal-stack all-ins terminate.
+Every confirmed finding from both audits is now fixed, and each one has a
+regression test that pursues the exploit to the money rather than stopping at
+the first check that happens to fail.
 
-**What is NOT fixed, and matters:**
-
-| | |
+| Finding | Fix |
 |---|---|
-| Relayer can drain a cage | `creditRemote` trusts relayer-supplied fields; replay protection only stops reusing the same invented tuple. It can credit itself and cash out. |
-| Relayer can pick the winner | `expectedAttestation` is a pure function of `(handId, winner)`, so the relayer computes it for whichever winner it likes. The challenge window has no challenge function. |
-| Dealer can grind the deck | The dealer supplies its nonce after seeing both player seeds, and `deckCommit` is stored but never read. Nothing proves the dealt cards form one valid permutation. |
-| Oracle can compound moves | The 20% bound is per-post with no minimum interval, so a sequence of legal posts repriced a cage to near-zero float. |
-| Chips conserve per cage, not globally | Each deployment has its own ledger. One source deposit can be credited on two cages. |
+| RA-001 relayer drained a funded cage | remote credit needs a threshold-signed receipt the relayer cannot author, may not name the relayer, and must leave the cage solvent |
+| RA-002 relayer chose any winner | settlement needs signatures from a quorum the relayer is not in; the challenge window has a `challenge()` and `timeout` reaches `Disputed` |
+| RA-003 dealer ground the deck; seven aces accepted | dealer commits its nonce before either seed is revealed; 21 comparisons require the seven source cards to be distinct |
+| RA-004 oracle compounded 20% moves | minimum interval between posts, a rolling-window cap, and a solvency check at the new price |
+| RA-005 one deposit, two cages | leaving burns and issues a receipt; a same-chain destination READS that receipt rather than trusting a signature |
+| RA-006 `openHand` front-running | the hand id is derived from its own setup, so an id cannot be claimed with different content |
+| RA-007 board recoverable by brute force | the board commitment takes a salt |
+| RA-008 unequal-stack all-ins deadlocked | raises cap at the opponent's effective stack; unmatched money goes back |
+| RA-009 both-muck awarded seat 0 by accident | both-muck splits, in the contract and the relayer |
+| RA-011 tests stopped before the exploit paid | `npm run check:exploits` runs each one to withdrawal |
+| RA-012 harness targeted a removed contract | rewritten against `openHand`; CI asserts the harness and artifact agree |
+| RA-014 immutable roles, unvalidated params | two-step admin handover, rotatable relayer/oracle, pause, constructor validation |
+| RA-015 opponent cards readable in devtools | sealed in a module-scoped vault outside React state |
+| RA-016 `npm test` was a dead script | it runs the suite, and CI enforces it |
 
-All five need a real cross-chain message protocol and a dealing scheme no last
-mover can grind — protocol design, not a patch. **Nightfold is a demonstration
-of what the muck buys you, not a system for real money.**
+The cage rests on one invariant, checked wherever value or price moves:
 
-`docs/security.md` and `.superstack/security-reports/` carry both audits in
-full, including the executed evidence for each finding.
+    tokensFor(totalChips) + totalWithdrawable <= address(this).balance
+
+It bounds loss rather than counting units, which is why it cannot be walked
+around one legal step at a time the way the old per-call caps could.
+
+**What is still true, and matters:**
+
+- **The relayer and watchers are trusted.** Verifying a Midnight result on an
+  EVM chain needs a light client or bridge that does not exist yet. The quorum
+  raises the bar from one key to several and `challenge()` means a false
+  settlement refunds rather than pays — but a colluding quorum can still
+  misreport. This is a trusted-committee design, not a trustless one.
+- **Cross-chain burns are attested, not verified.** Where the source cage is on
+  the same chain the burn is read directly. Where it is not, the watchers vouch
+  for it.
+- **Betting is not on-chain** (RA-010). The cage holds chips and the escrow
+  holds a stake, but per-street betting is JavaScript. The demo is a simulator
+  over real contracts, not a real-money path.
+- **Compact has no fold** (RA-009, partial). The UI ends a hand on a fold; the
+  contract only knows show, beat and muck. The lifecycles agree on showdown and
+  diverge on folds.
+
+**Nightfold is a demonstration of what the muck buys you. Do not put real money
+in it.**
 
 ## Limitations
 

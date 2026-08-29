@@ -33,16 +33,34 @@ jobs:
       - name: Start anvil
         run: anvil --port 8545 --silent &
 
-      # The generated artifacts must match the source they claim to come from,
-      # or `proof:real` and the tests can be exercising different contracts
-      # (RA-012).
-      - name: Contracts are freshly generated
+      # RA-012: proof:real was calling commitDeal and reading holeCommits long
+      # after both were removed, because contracts/managed is gitignored and a
+      # stale local build never fails anything. CI compiles fresh and then
+      # asserts the harness and the artifact agree on what the contract is.
+      - name: Real-proof harness matches the compiled contract
         run: |
           npm run compile
-          git diff --exit-code contracts/managed || {
-            echo "::error::contracts/managed is stale — run npm run compile and commit"
-            exit 1
-          }
+          node --input-type=module -e "
+            import * as nf from './contracts/managed/nightfold/contract/index.js';
+            import { readFileSync } from 'node:fs';
+            const src = readFileSync('src/midnight/realproof.mjs', 'utf8');
+            const contract = new nf.Contract({
+              seatSecret: () => [], holeCards: () => [], holeSalt: () => [],
+              boardSalt: () => [], claimedHand: () => [], handPick: () => [],
+            });
+            const available = new Set([
+              ...Object.keys(contract.impureCircuits),
+              ...Object.keys(nf.pureCircuits),
+            ]);
+            const called = [...src.matchAll(/'([a-zA-Z]+)'\s*,\s*[a-z]+\.ps|pc\.([a-zA-Z]+)\(/g)]
+              .flatMap((m) => [m[1], m[2]]).filter(Boolean);
+            const missing = [...new Set(called)].filter((n) => !available.has(n));
+            if (missing.length) {
+              console.error('harness calls circuits the contract does not have:', missing.join(', '));
+              process.exit(1);
+            }
+            console.log('harness and artifact agree —', available.size, 'circuits');
+          "
 
       - run: npm test
       - run: npm run build --prefix ui

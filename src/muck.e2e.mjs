@@ -100,6 +100,21 @@ console.log('\nbeat — take the pot without showing:\n');
         rejects(() => call(t, 'beatOpponent', stage(h.seats[1], BOB, board, hv), h.handId, 1n, board)));
 }
 
+{
+  // RA-009: if BOTH seats muck, neither is claiming the pot — so neither takes
+  // it. The old ordering fell through `muck1 ? 0` and quietly handed it to
+  // seat 0, while the comments and the UI both said split.
+  const t2 = newTable(Contract);
+  const h = dealHand(t2, pureCircuits, { board, hole0: ALICE, hole1: BOB });
+
+  call(t2, 'muckHand', h.seats[0], h.handId, 0n);
+  call(t2, 'muckHand', h.seats[1], h.handId, 1n);
+  const winner = call(t2, 'settle', h.seats[0], h.handId);
+
+  check('when both seats muck the pot splits', Number(winner) === 2,
+        'nobody claims it, so nobody takes it');
+}
+
 console.log(failures === 0
   ? '\nmuck holds: a conceding player leaves nothing, a winner need not show'
   : `\n${failures} FAILED`);
