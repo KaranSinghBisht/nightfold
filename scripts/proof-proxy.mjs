@@ -50,6 +50,15 @@ createServer((req, res) => {
             `${ok ? '  ok ' : 'FAIL'} ${req.method} ${req.url} → ${upstream.statusCode} ` +
             `(${ms}ms, req ${body.length}B, res ${respBody.length}B)`
           );
+
+          // The server rejects on a SERIALIZATION HEADER TAG it reads off the
+          // front of the body, and its 400 quotes the tag it wanted. Printing
+          // the tag actually sent is the only way to compare the two — the
+          // difference between them is the whole bug.
+          const lead = body.subarray(0, 120).toString('latin1');
+          const tag = lead.match(/midnight:\([^)]*\)*[^:]*:/)?.[0]
+                   ?? lead.replace(/[^\x20-\x7e]/g, '.').slice(0, 80);
+          console.log(`  sent tag: ${tag}`);
           if (!ok) {
             console.log('  ┌─ response body ' + '─'.repeat(50));
             console.log('  │ ' + respBody.toString('utf8').slice(0, 1500).split('\n').join('\n  │ '));

@@ -4,7 +4,7 @@
 
 Built for the **Midnight Hackathon, August 2026 — Cross-Chain Track**.
 
-**Play it: [nightfold-poker.vercel.app](https://nightfold-poker.vercel.app)**
+**Play it: [nightfold-midnight.vercel.app](https://nightfold-midnight.vercel.app)**
 
 The deployed site is the interface. The poker, the muck and wallet connect run
 in your browser — deal yourself in and the losing hand is never rendered, which

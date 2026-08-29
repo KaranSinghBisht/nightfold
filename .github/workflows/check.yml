@@ -30,12 +30,19 @@ jobs:
       # Piping `releases/latest` into a shell runs whatever is published at the
       # moment the job starts. Pin the version and check the artifact before it
       # executes (NFV-013).
+      # The repo publishes TWO version streams: `compact-vX.Y.Z` is the CLI
+      # (which ships compact-installer.sh) and `compactc-vX.Y.Z` is the
+      # compiler. This step pinned `v0.31.1` — the compiler's number in the
+      # CLI's tag shape — so the download 404'd and every run failed at the
+      # same line. Both are pinned separately now, to what this project builds
+      # with locally.
       - name: Install Compact
         env:
-          COMPACT_VERSION: '0.31.1'
+          COMPACT_CLI_TAG: 'compact-v0.5.1'
+          COMPACT_TOOLCHAIN: '0.31.1'
         run: |
           set -euo pipefail
-          url="https://github.com/midnightntwrk/compact/releases/download/v${COMPACT_VERSION}/compact-installer.sh"
+          url="https://github.com/midnightntwrk/compact/releases/download/${COMPACT_CLI_TAG}/compact-installer.sh"
           curl --proto '=https' --tlsv1.2 -fsSL "$url" -o /tmp/compact-installer.sh
           sha256sum /tmp/compact-installer.sh | tee /tmp/compact-installer.sha256
           if [ -f .github/compact-installer.sha256 ]; then
@@ -45,6 +52,11 @@ jobs:
           fi
           sh /tmp/compact-installer.sh
           echo "$HOME/.compact/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.compact/bin:$PATH"
+          # The installer brings the CLI, not a compiler. Without this the
+          # first `compact compile` fails on a toolchain that is not there.
+          compact update "$COMPACT_TOOLCHAIN"
+          compact compile --version
 
       - run: npm ci
       - run: npm ci --prefix ui --legacy-peer-deps
