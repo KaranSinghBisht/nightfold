@@ -207,6 +207,23 @@ ui/                      the table
 scripts/devnet.sh        starts the local stack in an order that works
 ```
 
+## Taking a seat
+
+`#play` opens a lobby with two lanes, because the questions a first-time
+visitor has ("whose chips are these, do I need a wallet") deserve an answer
+before a hand starts rather than after.
+
+- **Guest table** — 1,000 house chips, dealt immediately, no wallet. Nothing is
+  deposited and nothing settles on a chain; the seat plate says `house chips`
+  rather than dressing them up as a deposit that never happened. The poker and
+  the muck, with the money left out.
+- **Cash table** — connect, pick one of six chains, deposit, and the cage
+  credits chips at the derived rate. Both seats are dealt the same stack,
+  because that is what the cage is for.
+
+`#play?demo=muck` and `#play?demo=showdown` skip the lobby and land on a frozen
+beat — the shot is the hand, not the entrance.
+
 ## Running it
 
 ```bash

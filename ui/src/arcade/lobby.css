@@ -1,0 +1,195 @@
+/* The entrance. Same machine as the landing and the table — bezelled panels,
+   bitmap headings, one blue — with the two lanes given equal weight so the
+   guest route does not read as a lesser version of the real thing. */
+
+.lob {
+  --bg:       #06080B;
+  --panel:    #0C1116;
+  --edge:     #1B2530;
+  --edge-hot: #31414F;
+  --phos:     #5C9BFF;
+  --steel:    #C6D6E8;
+  --paper:    #EEF3F8;
+  --dim:      #8C99A6;
+  --faint:    #5A6874;
+
+  position: relative;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--paper);
+  font-family: var(--mono);
+  display: flex;
+  flex-direction: column;
+}
+
+.lob__tube {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, .22) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 100% at 50% 50%, transparent 56%, rgba(0, 0, 0, .3) 90%, rgba(0, 0, 0, .55) 100%);
+  mix-blend-mode: multiply;
+}
+
+/* ---- bar ------------------------------------------------------------------ */
+
+.lob__bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--edge-hot);
+  background: rgba(6, 8, 11, .8);
+}
+.lob__brand { display: flex; align-items: center; gap: 11px; text-decoration: none; margin-right: auto; }
+.lob__mark { filter: drop-shadow(0 0 6px rgba(92, 155, 255, .7)); }
+.lob__brandName { font-family: var(--pixel); font-weight: 700; font-size: .88rem; letter-spacing: .04em; color: var(--paper); }
+.lob__brandSub { font-size: .54rem; letter-spacing: .18em; color: var(--steel); }
+
+.lob__wallet {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: .6rem;
+  letter-spacing: .06em;
+  color: var(--phos);
+  padding: 7px 11px;
+  border: 1px solid var(--edge-hot);
+}
+.lob__demo {
+  font-style: normal;
+  font-size: .44rem;
+  letter-spacing: .12em;
+  padding: 2px 5px;
+  color: #06090C;
+  background: var(--dim);
+}
+
+/* ---- lanes ---------------------------------------------------------------- */
+
+.lob__lanes {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  align-content: center;
+  max-width: 1080px;
+  width: 100%;
+  margin: 0 auto;
+  padding: clamp(28px, 6vh, 64px) 24px 20px;
+}
+
+.lob__lane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 30px 28px;
+  border: 10px solid #050709;
+  outline: 1px solid var(--edge-hot);
+  background: var(--panel);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .7);
+}
+.lob__lane--cash {
+  outline-color: var(--phos);
+  box-shadow: 0 0 0 1px rgba(92, 155, 255, .16), 0 24px 64px rgba(0, 0, 0, .7);
+}
+
+.lob__kicker { font-size: .52rem; letter-spacing: .2em; color: var(--faint); }
+.lob__kicker--on { color: var(--phos); }
+
+.lob__name {
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: .04em;
+  margin: 0;
+  color: var(--paper);
+}
+.lob__lane--cash .lob__name { color: var(--phos); text-shadow: 0 0 16px rgba(92, 155, 255, .5); }
+
+.lob__blurb { margin: 0; font-size: .78rem; line-height: 1.8; color: var(--dim); }
+
+.lob__points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.lob__points li { display: flex; align-items: center; gap: 10px; font-size: .68rem; letter-spacing: .04em; color: var(--steel); }
+.lob__tick { width: 7px; height: 7px; flex: none; background: var(--phos); }
+.lob__tick--off { background: var(--faint); }
+
+.lob__chains { display: flex; flex-wrap: wrap; gap: 7px; }
+.lob__chain {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border: 1px solid var(--edge);
+  font-size: .56rem;
+  letter-spacing: .06em;
+  color: var(--steel);
+}
+
+.lob__steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; counter-reset: s; }
+.lob__steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: .68rem;
+  letter-spacing: .04em;
+  color: var(--dim);
+}
+.lob__steps b {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  font-family: var(--pixel);
+  font-size: .56rem;
+  color: #06090C;
+  background: var(--faint);
+}
+.lob__step--done { color: var(--paper); }
+.lob__step--done b { background: var(--phos); }
+.lob__stepNote { margin-left: auto; font-size: .56rem; color: var(--phos); }
+
+.lob__go {
+  margin-top: auto;
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: .7rem;
+  letter-spacing: .06em;
+  padding: 16px;
+  border: 2px solid var(--phos);
+  background: var(--phos);
+  color: #06090C;
+  cursor: pointer;
+  box-shadow: 5px 5px 0 rgba(92, 155, 255, .22);
+  transition: box-shadow .16s ease, transform .16s ease, background .16s ease;
+}
+.lob__go:hover:not(:disabled) { box-shadow: 7px 7px 0 rgba(92, 155, 255, .34); transform: translate(-1px, -1px); }
+.lob__go:active:not(:disabled) { box-shadow: 2px 2px 0 rgba(92, 155, 255, .22); transform: translate(2px, 2px); }
+.lob__go:disabled { opacity: .5; cursor: progress; }
+
+.lob__go--ghost {
+  background: transparent;
+  color: var(--steel);
+  border-color: var(--edge-hot);
+  box-shadow: 5px 5px 0 rgba(198, 214, 232, .1);
+}
+.lob__go--ghost:hover { border-color: var(--steel); color: var(--paper); }
+
+.lob__note { margin: 0; font-size: .58rem; line-height: 1.7; color: var(--faint); }
+
+.lob__foot {
+  text-align: center;
+  font-size: .66rem;
+  letter-spacing: .06em;
+  color: var(--faint);
+  padding: 0 24px 34px;
+  margin: 0;
+}
+
+@media (max-width: 860px) {
+  .lob__lanes { grid-template-columns: 1fr; }
+  .lob__lane { border-width: 8px; padding: 24px 20px; }
+}

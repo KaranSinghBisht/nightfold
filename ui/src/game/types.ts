@@ -13,7 +13,7 @@ export interface Card {
 }
 
 /** Where a player's chips came from. Any chain the cage credits. */
-export type Chain = 'base' | 'ethereum' | 'solana' | 'cardano' | 'bitcoin' | 'near';
+export type Chain = 'house' | 'base' | 'ethereum' | 'solana' | 'cardano' | 'bitcoin' | 'near';
 
 export interface ChainInfo {
   id: Chain;
@@ -23,6 +23,9 @@ export interface ChainInfo {
 }
 
 export const CHAINS: Record<Chain, ChainInfo> = {
+  /** Practice chips. Not on any chain, and the UI says so rather than dressing
+      them up as a deposit that never happened. */
+  house:    { id: 'house',    label: 'House chips',   ticker: 'CHIPS', color: '#8195A9' },
   base:     { id: 'base',     label: 'Base Sepolia',  ticker: 'ETH',  color: '#0052FF' },
   ethereum: { id: 'ethereum', label: 'Ethereum',      ticker: 'ETH',  color: '#627EEA' },
   solana:   { id: 'solana',   label: 'Solana devnet', ticker: 'SOL',  color: '#9945FF' },

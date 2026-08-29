@@ -17,3 +17,13 @@
 - Active proofs: 8 (cage drain, false escrow winner, dealer nonce grind, impossible duplicate cards, oracle drain, cross-cage double issue, unauthenticated hand open, unequal all-in deadlock)
 - Confidence gate: 2/10
 - Report: `midnight-2026-08-29-reaudit.md`
+
+## 2026-08-29 — midnight remediation verification
+
+- Mode: Daily remediation verification
+- Snapshot: `9fada51` (security remediation at `5099c0f`)
+- Findings: 14 (C: 3, H: 4, M: 4, L: 2, I: 1)
+- Original 18: Fixed 5 | Partial 6 | Open 6 | Accepted/not implemented 1
+- Active proofs: 8 (two cage drains, pending-deposit insolvency, receipt nonce collision, oracle-role insolvency, cross-seat duplicate card, invalid real-proof witnesses, shown-card rendering)
+- Confidence gate: 8/10
+- Report: `midnight-2026-08-29-remediation-verification.md`

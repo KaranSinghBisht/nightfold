@@ -63,6 +63,8 @@ export function startHand(
   stacks: [number, number] = [200, 200],
   /** Which chain each seat's chips were bought on. */
   seatChains: [ChainId, ChainId] = ['base', 'solana'],
+  /** False for a guest table: house chips, so there is no deposit to report. */
+  funded = true,
 ): Engine {
   const a = commitSeed();
   const b = commitSeed();
@@ -87,8 +89,14 @@ export function startHand(
     winner: null,
     deckCommitment: shortHex(d.deckCommitment, 16),
     events: [
-      { chain: 'base', label: 'buyIn', detail: `${unitsForChips('ETH', 1000)} → 1,000 chips · Alice` },
-      { chain: 'solana', label: 'buyIn', detail: `${unitsForChips('SOL', 1000)} → 1,000 chips · Bob` },
+      ...(funded
+        ? ([
+            { chain: 'base' as ChainId, label: 'buyIn', detail: `${unitsForChips('ETH', 1000)} → 1,000 chips · Alice` },
+            { chain: 'solana' as ChainId, label: 'buyIn', detail: `${unitsForChips('SOL', 1000)} → 1,000 chips · Bob` },
+          ] as LedgerEvent[])
+        : ([
+            { chain: 'house' as ChainId, label: 'guestSeat', detail: 'practice chips — nothing on any chain' },
+          ] as LedgerEvent[])),
       { chain: 'midnight', label: 'commitDeal', detail: `seat 0 · ${shortHex(d.deckCommitment, 18)}`, opaque: true, masked: ['cards'] },
       { chain: 'midnight', label: 'commitDeal', detail: `seat 1 · ${shortHex(a.commitment, 18)}`, opaque: true, masked: ['cards'] },
     ],

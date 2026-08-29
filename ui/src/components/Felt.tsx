@@ -50,7 +50,8 @@ function SeatPlate({ seat, isYou, isButton, isToAct, thinking, hint }: {
         <span className="plate__chips mono">
           <span className="plate__chipDot" style={{ background: chain.color }} />
           {Number(seat.stake).toLocaleString()} chips
-          <span className="plate__via">via {chain.ticker}</span>
+          {/* House chips came from nowhere, so they do not get a "via". */}
+          <span className="plate__via">{chain.id === 'house' ? 'house chips' : `via ${chain.ticker}`}</span>
         </span>
         <span className={`plate__status${won ? ' plate__status--won' : ''}${mucked ? ' plate__status--muck' : ''}`}>
           {thinking ? 'thinking…' : STATUS_TEXT[seat.status]}

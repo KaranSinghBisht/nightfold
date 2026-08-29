@@ -3,6 +3,7 @@ import './chainrail.css';
 
 const CHAIN_LABEL: Record<LedgerEvent['chain'], string> = {
   midnight: 'MIDNIGHT',
+  house: 'HOUSE',
   base: 'BASE',
   ethereum: 'ETHEREUM',
   solana: 'SOLANA',

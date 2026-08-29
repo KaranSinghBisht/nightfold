@@ -8,6 +8,7 @@ import { Logo } from './arcade/Logo';
 import { CHAINS, rateOf, unitsForChips } from './arcade/chains';
 import { CageModal, type BuyIn } from './arcade/CageModal';
 import { connect, short, type Wallet } from './arcade/wallet';
+import { Lobby } from './arcade/Lobby';
 import './layout.css';
 import './arcade/table-skin.css';
 
@@ -15,13 +16,17 @@ const YOU = 0 as const;
 
 interface Legal { type: string; amount?: number; min?: number; max?: number }
 
+const demoParam = () =>
+  new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('demo');
+
 /**
  * Fast-forward to a beat for recording: #play?demo=muck lands on the settled
  * muck, #play?demo=showdown on the show-or-muck decision. Checks the hand down
- * so no betting randomness gets in the way of the shot.
+ * so no betting randomness gets in the way of the shot. A demo URL skips the
+ * lobby entirely — the shot is the hand, not the entrance.
  */
 function initialEngine(): Engine {
-  const demo = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('demo');
+  const demo = demoParam();
   if (!demo) return startHand();
   let e = startHand(0);
   let guard = 0;
@@ -35,29 +40,41 @@ function initialEngine(): Engine {
   return e;
 }
 
+type Seat = 'guest' | 'cash';
+
 export function Table() {
   const [engine, setEngine] = useState<Engine>(initialEngine);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [cageOpen, setCageOpen] = useState(false);
   const [lastBuy, setLastBuy] = useState<BuyIn | null>(null);
+  /** Null until the player has chosen a lane. A demo URL is already seated. */
+  const [seat, setSeat] = useState<Seat | null>(() => (demoParam() ? 'cash' : null));
+
+  /** House chips: dealt immediately, and honest about touching no chain. */
+  const sitGuest = useCallback(() => {
+    setEngine(startHand(0, [1000, 1000], ['house', 'house'], false));
+    setSeat('guest');
+  }, []);
 
   /** Sitting down with a bought stack starts a fresh hand at that size. */
   const buyIn = useCallback((buy: BuyIn) => {
     setCageOpen(false);
     setLastBuy(buy);
-    setEngine((prev) => {
-      const next = startHand(0, [buy.chips, prev.betting.stacks[1]], [buy.chain.id as never, prev.seatChains[1]]);
-      return {
-        ...next,
-        events: [
-          {
-            chain: buy.chain.id as never,
-            label: 'buyIn',
-            detail: `${buy.units} ${buy.chain.ticker} on ${buy.chain.name} → ${buy.chips.toLocaleString('en-US')} chips`,
-          },
-          ...next.events.slice(1),
-        ],
-      };
+    setSeat('cash');
+    // Same stack, fair game — which is what the cage sidebar promises, so the
+    // opponent is seated at the size you bought in for rather than whatever was
+    // left over from a previous hand.
+    const next = startHand(0, [buy.chips, buy.chips], [buy.chain.id as never, 'solana']);
+    setEngine({
+      ...next,
+      events: [
+        {
+          chain: buy.chain.id as never,
+          label: 'buyIn',
+          detail: `${buy.units} ${buy.chain.ticker} on ${buy.chain.name} → ${buy.chips.toLocaleString('en-US')} chips`,
+        },
+        ...next.events.slice(1),
+      ],
     });
   }, []);
   const [thinking, setThinking] = useState(false);
@@ -112,6 +129,22 @@ export function Table() {
   const yourHand = engine.revealed >= 3
     ? handName([...engine.hole[YOU], ...engine.board.slice(0, engine.revealed)])
     : undefined;
+
+  if (seat === null) {
+    return (
+      <>
+        <Lobby
+          wallet={wallet}
+          onWallet={setWallet}
+          onGuest={sitGuest}
+          onCash={() => setCageOpen(true)}
+        />
+        {/* The cage opens over the lobby too — buying in IS how you sit down
+            at the cash table, so it cannot live only inside the desk. */}
+        {cageOpen && <CageModal onClose={() => setCageOpen(false)} onConfirm={buyIn} />}
+      </>
+    );
+  }
 
   return (
     <div className="desk desk--arc">

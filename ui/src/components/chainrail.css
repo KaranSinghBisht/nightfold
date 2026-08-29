@@ -131,3 +131,5 @@
 .rail__chain--cardano,  .rail__pill--cardano  { color: #3468D1; }
 .rail__chain--bitcoin,  .rail__pill--bitcoin  { color: #F7931A; }
 .rail__chain--near,     .rail__pill--near     { color: #00EC97; }
+
+.rail__chain--house, .rail__pill--house { color: #8195A9; }
