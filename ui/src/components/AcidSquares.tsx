@@ -61,7 +61,6 @@ uniform float uDensity;
 uniform float uGlow;
 uniform float uExposure;
 uniform float uSpread;
-uniform float uStep;
 uniform float uContrast;
 uniform float uBrightness;
 uniform float uOpacity;
@@ -70,68 +69,80 @@ uniform float uMouseStrength;
 uniform float uMouseRadius;
 uniform float uGrain;
 
-// Distance to a stack of axis-aligned squares, warped by a slow wave. The
-// squares are what give the field its plated, panelled look.
-float field(vec3 pos) {
-  float t = uTime * uSpeed;
-  pos.xy *= uZoom;
-
-  // slow travelling wave so the plates breathe rather than scroll
-  pos.z += sin(pos.x * 0.6 + t * 0.5) * uWaveDepth * 0.35;
-  pos.z += cos(pos.y * 0.5 - t * 0.4) * uWaveDepth * 0.35;
-
-  vec3 q = pos;
-  float cell = 6.2831853 / max(uDensity, 1.0);
-  q.xy = mod(q.xy + cell * 0.5, cell) - cell * 0.5;
-
-  // square cross-section, softened
-  vec2 d2 = abs(q.xy) - vec2(cell * uSpread);
-  float sq = length(max(d2, 0.0)) + min(max(d2.x, d2.y), 0.0);
-  return sq - 0.02;
+// Rounded-square mask for one cell, in [-0.5, 0.5] cell space.
+float plate(vec2 p, float half_) {
+  vec2 d = abs(p) - vec2(half_);
+  float outside = length(max(d, 0.0));
+  float inside  = min(max(d.x, d.y), 0.0);
+  return outside + inside;
 }
 
 void main() {
   vec2 uv = (gl_FragCoord.xy * 2.0 - uRes) / max(uRes.y, 1.0);
 
   // gentle parallax toward the cursor
-  vec2 m = (uMouse * 2.0 - 1.0);
+  vec2 m = uMouse * 2.0 - 1.0;
   float pull = exp(-length(uv - m) / max(uMouseRadius, 0.001));
   uv += m * pull * uMouseStrength;
 
-  vec3 ro = vec3(0.0, 0.0, -3.0);
-  vec3 rd = normalize(vec3(uv, 1.4));
+  float t = uTime * uSpeed;
 
-  float acc = 0.0;
-  float dist = 0.0;
-  // fixed low step count: this sits behind text and must stay cheap
-  for (int i = 0; i < 46; i++) {
-    vec3 pos = ro + rd * dist;
-    float d = field(pos);
-    // accumulate glow near surfaces rather than hard-hitting them
-    acc += uGlow * 0.02 / (abs(d) + 0.045);
-    dist += max(abs(d) * 0.6, uStep * 40.0);
-    if (dist > 9.0) break;
-  }
+  // Perspective tilt: the grid recedes, so plates read as a surface rather
+  // than wallpaper. Guarded so the horizon never divides by zero.
+  vec2 g = uv * uZoom;
+  float persp = 1.0 / max(0.55 + g.y * 0.55, 0.18);
+  vec2 plane = vec2(g.x * persp, persp * 1.35 + t * 0.35);
 
-  // This sits BEHIND headline type, so it has to stay dark. The exposure
-  // divisor is large and the result is clamped well below 1: the field reads
-  // as brushed metal catching a little light, never as a lit surface.
-  float e = acc / max(uExposure * 0.022, 0.001);
-  e = pow(clamp(e, 0.0, 1.0), max(uContrast, 0.001) * 1.25) * uBrightness;
-  e = clamp(e, 0.0, 0.62);
+  float cells = max(uDensity, 2.0) * 0.5;
+  vec2 cell = plane * cells;
+  vec2 id = floor(cell);
+  vec2 f = fract(cell) - 0.5;
 
-  // Metallic ramp: deep ground -> brushed steel, with a narrow cool highlight
-  // only where the plate edges catch the light.
-  vec3 col = mix(uC1, uC2, smoothstep(0.01, 0.50, e));
-  col = mix(col, uC3, smoothstep(0.42, 0.62, e) * 0.45);
+  // Travelling waves across the grid: this is the motion you actually see —
+  // whole ranks of plates lifting and settling.
+  float w =
+      sin(id.x * 0.55 - t * 1.15)
+    + sin(id.y * 0.42 + t * 0.85)
+    + sin((id.x + id.y) * 0.30 - t * 0.65);
+  w = w / 3.0;                      // -1 .. 1
+  float lift = 0.5 + 0.5 * w;       //  0 .. 1
 
-  // Directional falloff rather than a symmetric vignette: the left third is
-  // where the headline sits, so it stays near the page ground while the plates
-  // read clearly on the right.
-  float toLeft = smoothstep(-1.5, 0.35, uv.x);
-  col = mix(uC1 * 0.92, col, 0.22 + 0.78 * toLeft);
-  col *= 1.0 - 0.42 * dot(uv * 0.55, uv * 0.55);
-  col = max(col, uC1 * 0.88);
+  // Plate size breathes with the wave, so edges travel too.
+  float half_ = mix(0.16, 0.46, uSpread * 2.0) * (0.72 + 0.42 * lift);
+  float d = plate(f, half_);
+
+  // Body and rim. The rim is what makes it look like brushed metal catching
+  // a light rather than flat tiles.
+  float aa = 1.6 / max(uRes.y, 1.0) * cells * 2.0 + 0.012;
+  float body = 1.0 - smoothstep(0.0, aa, d);
+  float rim  = exp(-abs(d) * 26.0) * 0.9;
+
+  float e = (body * 0.55 + rim) * mix(0.35, 1.0, lift) * uGlow;
+
+  // Fade the field out as it recedes. Without this the grid converges into
+  // moire near the horizon, which reads as noise rather than depth and eats
+  // any text sitting over it.
+  float depth = clamp((persp - 0.55) * 0.7, 0.0, 1.0);
+  e *= smoothstep(0.0, 0.22, depth) * (1.0 - smoothstep(0.45, 1.0, depth));
+
+  e /= max(uExposure * 0.0012, 0.001);
+  e = pow(clamp(e, 0.0, 1.0), max(uContrast, 0.001) * 1.15) * uBrightness;
+  e = clamp(e, 0.0, 0.85) * uWaveDepth;
+
+  vec3 col = mix(uC1, uC2, smoothstep(0.02, 0.62, e));
+  col = mix(col, uC3, smoothstep(0.55, 0.85, e) * 0.55);
+
+  // Directional falloff: the headline sits on the left, so that side stays at
+  // the page ground while the plates read clearly on the right.
+  float toRight = smoothstep(-1.15, 0.55, uv.x);
+  col = mix(uC1 * 0.94, col, 0.18 + 0.82 * toRight);
+
+  // Settle the upper band too, so the nav and the card captions sit on calm
+  // ground rather than competing with the pattern.
+  col = mix(col, uC1 * 0.96, smoothstep(0.18, 0.62, uv.y) * 0.55);
+
+  col *= 1.0 - 0.34 * dot(uv * 0.5, uv * 0.5);
+  col = max(col, uC1 * 0.9);
 
   if (uGrain > 0.0) {
     float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) + uTime) * 43758.5453);
@@ -208,7 +219,7 @@ export function AcidSquares({
       c1: u('uC1'), c2: u('uC2'), c3: u('uC3'),
       speed: u('uSpeed'), wave: u('uWaveDepth'), zoom: u('uZoom'),
       density: u('uDensity'), glow: u('uGlow'), exposure: u('uExposure'),
-      spread: u('uSpread'), step: u('uStep'), contrast: u('uContrast'),
+      spread: u('uSpread'), contrast: u('uContrast'),
       brightness: u('uBrightness'), opacity: u('uOpacity'),
       mouse: u('uMouse'), mStr: u('uMouseStrength'), mRad: u('uMouseRadius'),
       grain: u('uGrain'),
@@ -224,7 +235,6 @@ export function AcidSquares({
     gl.uniform1f(U.glow, glow);
     gl.uniform1f(U.exposure, exposure);
     gl.uniform1f(U.spread, spread);
-    gl.uniform1f(U.step, stepSize);
     gl.uniform1f(U.contrast, contrast);
     gl.uniform1f(U.brightness, brightness);
     gl.uniform1f(U.opacity, opacity);
@@ -258,8 +268,10 @@ export function AcidSquares({
 
     const frame = (now: number) => {
       resize();
-      // Held still for anyone who asked for reduced motion.
-      gl.uniform1f(U.time, reduced ? 0 : (now - start) / 1000);
+      // Reduced motion gets a near-still field rather than a frozen one:
+      // enough drift that it does not read as a broken image.
+      const elapsed = (now - start) / 1000;
+      gl.uniform1f(U.time, reduced ? elapsed * 0.06 : elapsed);
       gl.uniform2f(U.mouse, mouse.x, mouse.y);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       raf = requestAnimationFrame(frame);
