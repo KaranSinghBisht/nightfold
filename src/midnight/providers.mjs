@@ -47,6 +47,10 @@ export async function buildWallet({ seed = GENESIS_SEED, env = LOCAL } = {}) {
 
 /** Assemble the provider bundle a contract call needs. */
 export function buildProviders(wallet, { env = LOCAL, privateStateDir = '.nightfold-state' } = {}) {
+  // Scopes the witness store to this wallet, so two players sharing a machine
+  // never read each other's hole cards out of the same LevelDB.
+  const accountId = wallet.coinPublicKey?.toString?.() ?? String(wallet.coinPublicKey ?? 'nightfold');
+
   return {
     privateStateProvider: levelPrivateStateProvider({
       privateStateStoreName: privateStateDir,
@@ -55,6 +59,7 @@ export function buildProviders(wallet, { env = LOCAL, privateStateDir = '.nightf
       // being hardcoded for real use.
       privateStoragePasswordProvider: () =>
         process.env.NIGHTFOLD_STATE_PASSWORD ?? 'nightfold-local-devnet-key',
+      accountId,
     }),
     publicDataProvider: indexerPublicDataProvider(env.indexer, env.indexerWS),
     zkConfigProvider: new NodeZkConfigProvider(ZK_CONFIG_PATH),

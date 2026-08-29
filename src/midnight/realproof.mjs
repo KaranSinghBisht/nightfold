@@ -10,9 +10,10 @@
 
 import { randomBytes } from 'node:crypto';
 import { deployContract } from '@midnight-ntwrk/midnight-js-contracts';
+import { CompiledContract } from '@midnight-ntwrk/compact-js';
 
 import { buildWallet, buildProviders, logger } from './providers.mjs';
-import { LOCAL } from './config.mjs';
+import { LOCAL, ZK_CONFIG_PATH as ZK_ASSETS } from './config.mjs';
 import * as nightfold from '../../contracts/managed/nightfold/contract/index.js';
 import { emptyPrivateState, stage, cards, showHand, bestFive } from '../witnesses.mjs';
 
@@ -34,10 +35,17 @@ async function main() {
   const wallet = await buildWallet();
   const providers = buildProviders(wallet, { env: LOCAL });
 
+  // midnight-js 4.x wants a CompiledContract: the generated constructor, the
+  // witnesses, and the path to the compiled assets, bound together.
+  const compiledContract = CompiledContract.make('nightfold', nightfold.Contract).pipe(
+    CompiledContract.withWitnesses(witnessBundle()),
+    CompiledContract.withCompiledFileAssets(ZK_ASSETS)
+  );
+
   logger.info('deploying nightfold...');
   const t0 = Date.now();
   const deployed = await deployContract(providers, {
-    contract: new nightfold.Contract(await witnessBundle()),
+    compiledContract,
     privateStateId: PS_ID,
     initialPrivateState: emptyPrivateState(),
   });
@@ -84,7 +92,7 @@ async function main() {
 }
 
 /** Witnesses read the staged private state the provider holds. */
-async function witnessBundle() {
+function witnessBundle() {
   return {
     holeCards: ({ privateState }) => [privateState, privateState.hole],
     holeSalt: ({ privateState }) => [privateState, privateState.salt],
