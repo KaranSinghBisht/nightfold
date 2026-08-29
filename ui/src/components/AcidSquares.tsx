@@ -90,8 +90,10 @@ void main() {
   // Perspective tilt: the grid recedes, so plates read as a surface rather
   // than wallpaper. Guarded so the horizon never divides by zero.
   vec2 g = uv * uZoom;
-  float persp = 1.0 / max(0.55 + g.y * 0.55, 0.18);
-  vec2 plane = vec2(g.x * persp, persp * 1.35 + t * 0.35);
+  // Shallower horizon: the plates sweep across the whole frame instead of
+  // piling into a vanishing point in the middle.
+  float persp = 1.0 / max(0.92 + g.y * 0.34, 0.30);
+  vec2 plane = vec2(g.x * persp * 1.25, persp * 1.15 + t * 0.35);
 
   float cells = max(uDensity, 2.0) * 0.5;
   vec2 cell = plane * cells;
@@ -122,8 +124,8 @@ void main() {
   // Fade the field out as it recedes. Without this the grid converges into
   // moire near the horizon, which reads as noise rather than depth and eats
   // any text sitting over it.
-  float depth = clamp((persp - 0.55) * 0.7, 0.0, 1.0);
-  e *= smoothstep(0.0, 0.22, depth) * (1.0 - smoothstep(0.45, 1.0, depth));
+  float depth = clamp((persp - 0.75) * 1.05, 0.0, 1.0);
+  e *= smoothstep(0.0, 0.18, depth) * (1.0 - smoothstep(0.55, 1.0, depth));
 
   e /= max(uExposure * 0.0012, 0.001);
   e = pow(clamp(e, 0.0, 1.0), max(uContrast, 0.001) * 1.15) * uBrightness;
@@ -132,16 +134,10 @@ void main() {
   vec3 col = mix(uC1, uC2, smoothstep(0.02, 0.62, e));
   col = mix(col, uC3, smoothstep(0.55, 0.85, e) * 0.55);
 
-  // Directional falloff: the headline sits on the left, so that side stays at
-  // the page ground while the plates read clearly on the right.
-  float toRight = smoothstep(-1.15, 0.55, uv.x);
-  col = mix(uC1 * 0.94, col, 0.18 + 0.82 * toRight);
-
-  // Settle the upper band too, so the nav and the card captions sit on calm
-  // ground rather than competing with the pattern.
-  col = mix(col, uC1 * 0.96, smoothstep(0.18, 0.62, uv.y) * 0.55);
-
-  col *= 1.0 - 0.34 * dot(uv * 0.5, uv * 0.5);
+  // The field is UNIFORM across the full width. Readability behind the
+  // headline is handled by the CSS scrim above this canvas, not by dimming
+  // one side of the shader -- doing that here just left the page half empty.
+  col *= 1.0 - 0.26 * dot(uv * 0.42, uv * 0.42);
   col = max(col, uC1 * 0.9);
 
   if (uGrain > 0.0) {
