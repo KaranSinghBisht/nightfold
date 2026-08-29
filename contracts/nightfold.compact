@@ -6,54 +6,83 @@ import HandRank;
 // Nightfold — cross-chain Texas Hold'em where the losing hand is never shown.
 //
 // The ledger only ever learns:
-//   - that a player committed to two hole cards        (an opaque commitment)
-//   - the RANK their hand reached at showdown          (a single integer)
-//   - who won, and a payout attestation for the relayer
+//   - that a hand was opened, with commitments to the deck, the board and
+//     each seat's hole cards
+//   - the RANK a player chose to publish at showdown, if any
+//   - who won, and a payout attestation bound to (handId, winner)
 //
-// It never learns the cards. A player who loses proves only that they lost.
-// Their hand goes into the muck and stays there — permanently, not just until
-// someone runs an indexer over it.
+// It never learns the cards. A player who loses proves only that they lost, or
+// nothing at all.
 //
-// Betting and the public board live on the money chains (Base, Solana), which
-// settle in seconds. Midnight is touched exactly twice per hand.
+// SECURITY MODEL (rewritten after the 2026-08-29 audit; see docs/security.md)
+//
+//   Every hand is opened by the dealer with a HandSetup that fixes the deck
+//   commitment, the board, and BOTH seats' hole-card commitments before a
+//   single action is possible. Players cannot choose their own cards (NF-003),
+//   cannot substitute a board (NF-004), and cannot act for a seat they do not
+//   hold, because each action proves knowledge of that seat's secret (NF-002).
+//   beatOpponent reads the threshold from the ledger rather than taking it
+//   from the caller (NF-005), and the three resolutions are mutually exclusive.
 // ============================================================================
 
-// ---- ledger ----------------------------------------------------------------
-// Keyed by seatKey = H("nf:seat", handId, seat) so hands never collide.
+// ---- hand state ------------------------------------------------------------
 
-export ledger holeCommits: Map<Bytes<32>, Bytes<32>>;
-export ledger shownRanks:  Map<Bytes<32>, Uint<32>>;
-export ledger settledHands: Set<Bytes<32>>;
-// A seat that conceded without revealing anything at all.
+/**
+ * Everything about a hand that must be fixed before anyone acts. Written once
+ * by the dealer; immutable thereafter.
+ */
+export struct HandSetup {
+  // Commitment to the full shuffled deck, published before any card is dealt,
+  // so the deal is verifiable after the hand from the opening.
+  deckCommit: Bytes<32>;
+  // Commitment to the five board cards. The board is public by the rules of
+  // poker, so this is an unsalted hash anyone can recompute and check.
+  boardCommit: Bytes<32>;
+  // Per-seat hole-card commitments produced by the dealer. A player proves
+  // their cards OPEN one of these; they cannot invent cards.
+  hole0Commit: Bytes<32>;
+  hole1Commit: Bytes<32>;
+  // Per-seat authorisation keys, each H("nf:seatkey:", seatSecret). Only the
+  // holder of the matching secret can act for that seat.
+  seat0Key: Bytes<32>;
+  seat1Key: Bytes<32>;
+}
+
+export ledger hands: Map<Bytes<32>, HandSetup>;
+export ledger shownRanks: Map<Bytes<32>, Uint<32>>;
 export ledger muckedSeats: Set<Bytes<32>>;
-// A seat that proved it beats the shown rank WITHOUT publishing its own.
 export ledger beatShown: Set<Bytes<32>>;
+export ledger settledHands: Set<Bytes<32>>;
 export ledger payoutAttest: Map<Bytes<32>, Bytes<32>>;
-export ledger handsDealt:  Counter;
+export ledger handsOpened: Counter;
 export ledger handsSettled: Counter;
 
 // ---- private inputs --------------------------------------------------------
 
+// The secret proving the caller holds a seat. Never leaves the client.
+witness seatSecret(): Bytes<32>;
+// The hole cards the dealer dealt this seat, with the salt that opens the
+// dealer's commitment to them.
 witness holeCards(): Vector<2, Card>;
 witness holeSalt(): Bytes<32>;
-// The five cards the player is claiming, and where each sits among their
-// seven (2 hole + 5 board). Supplying the cards directly rather than selecting
-// them in-circuit keeps evaluate5's inputs as plain values -- selecting with a
-// ternary ladder builds a deep expression tree for every card, and evaluate5
-// reads each card about ten times, so the shared-subexpression blowup makes
-// the circuit uncompilable in practice.
+// The five cards being claimed, and where each sits among the seven.
 witness claimedHand(): Vector<5, Card>;
 witness handPick(): Vector<5, Uint<8>>;
 
 // ---- keys and commitments --------------------------------------------------
 
-export circuit seatKey(handId: Bytes<32>, seat: Uint<8>): Bytes<32> {
+export circuit seatKeyOf(handId: Bytes<32>, seat: Uint<8>): Bytes<32> {
   return persistentHash<Vector<3, Bytes<32>>>(
     [pad(32, "nf:seat:"), handId, persistentHash<Uint<8>>(seat)]
   );
 }
 
-// Binding + hiding commitment to the two hole cards.
+/** The public authorisation key derived from a seat secret. */
+export circuit seatAuthKey(secret: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "nf:seatkey:"), secret]);
+}
+
+/** Binding + hiding commitment to two hole cards. Produced by the dealer. */
 export circuit holeCommitment(cards: Vector<2, Card>, salt: Bytes<32>): Bytes<32> {
   return persistentHash<Vector<4, Bytes<32>>>([
     pad(32, "nf:hole:"),
@@ -63,58 +92,75 @@ export circuit holeCommitment(cards: Vector<2, Card>, salt: Bytes<32>): Bytes<32
   ]);
 }
 
-// Exposes the hand evaluator as a pure circuit so the client can pick its best
-// five off-chain using exactly the same ranking the circuit will verify. Pure,
-// so it costs nothing at deploy time and generates no keys.
+/** Unsalted commitment to the public board — anyone may recompute this. */
+export circuit boardCommitment(board: Vector<5, Card>): Bytes<32> {
+  return persistentHash<Vector<6, Bytes<32>>>([
+    pad(32, "nf:board:"),
+    persistentHash<Uint<8>>(board[0].id),
+    persistentHash<Uint<8>>(board[1].id),
+    persistentHash<Uint<8>>(board[2].id),
+    persistentHash<Uint<8>>(board[3].id),
+    persistentHash<Uint<8>>(board[4].id)
+  ]);
+}
+
+/** Exposes the evaluator so a client can pick its best five off-chain. */
 export circuit handValue(hand: Vector<5, Card>): Uint<32> {
   return evaluate5(hand);
 }
 
-// ---- circuits --------------------------------------------------------------
+// ---- internal guards -------------------------------------------------------
 
-// Player commits to their two hole cards. The chain sees an opaque 32 bytes.
-export circuit commitDeal(handId: Bytes<32>, seat: Uint<8>): [] {
-  const cards = holeCards();
-  checkCard(cards[0]);
-  checkCard(cards[1]);
-  assert(cards[0].id != cards[1].id, "duplicate hole cards");
+/**
+ * Proves the caller holds `seat` in this hand, and returns the seat's ledger
+ * key. Every state-changing circuit goes through here — that is what closes
+ * NF-002.
+ */
+circuit authoriseSeat(handId: Bytes<32>, seat: Uint<8>): Bytes<32> {
+  assert(seat < 2, "seat out of range");
+  assert(hands.member(disclose(handId)), "no such hand");
 
-  const key = disclose(seatKey(handId, seat));
-  assert(!holeCommits.member(key), "seat already dealt");
-
-  holeCommits.insert(key, disclose(holeCommitment(cards, holeSalt())));
-  handsDealt.increment(1);
+  const setup = hands.lookup(disclose(handId));
+  const mine = seatAuthKey(seatSecret());
+  const expected = seat == 0 ? setup.seat0Key : setup.seat1Key;
+  assert(mine == expected, "not your seat");
+  return disclose(seatKeyOf(handId, seat));
 }
 
-// A voluntary SHOW. Publishes the packed rank, which is what a player does at
-// a real showdown when they want the pot.
-//
-// Be precise about what this leaks: the packed rank encodes the category and
-// every tiebreaker, so publishing it publishes the hand's composition (though
-// not its suits). That is correct for a player who is choosing to show. A
-// player who does not want to reveal that uses muckHand or beatShownRank.
-//
-// The player names which five of their seven cards they are claiming. They are
-// free to under-claim, which only ever loses them the pot, so a single
-// evaluation is sound and all 21 combinations never have to be checked.
-export circuit revealHand(
+/** A seat may resolve exactly once, by exactly one of show / beat / muck. */
+circuit assertUnresolved(key: Bytes<32>): [] {
+  assert(!shownRanks.member(key), "seat already showed");
+  assert(!beatShown.member(key), "seat already claimed the beat");
+  assert(!muckedSeats.member(key), "seat already mucked");
+}
+
+/**
+ * Verifies the caller's hole cards open the DEALER's commitment for this seat,
+ * that the board matches the hand's committed board, and that the claimed five
+ * are distinct cards drawn from those seven. Returns the claimed hand.
+ *
+ * Closes NF-003 (self-selected cards) and NF-004 (substituted board).
+ */
+circuit verifiedClaim(
   handId: Bytes<32>,
   seat: Uint<8>,
   board: Vector<5, Card>
-): Uint<32> {
-  const cards = holeCards();
-  const salt = holeSalt();
-  const key = disclose(seatKey(handId, seat));
-
-  // The commitment binds them to the cards they were dealt.
-  assert(holeCommits.member(key), "no commitment for seat");
-  assert(holeCommits.lookup(key) == disclose(holeCommitment(cards, salt)),
-         "hole cards do not open the commitment");
-  assert(!shownRanks.member(key), "already revealed");
+): Vector<5, Card> {
+  const setup = hands.lookup(disclose(handId));
 
   for (const i of 0..5) {
     checkCard(board[i]);
   }
+  // The board must be the one this hand committed to.
+  assert(boardCommitment(board) == setup.boardCommit, "board does not match the hand");
+
+  // The hole cards must open the dealer's commitment for this seat.
+  const cards = holeCards();
+  checkCard(cards[0]);
+  checkCard(cards[1]);
+  const expectedHole = seat == 0 ? setup.hole0Commit : setup.hole1Commit;
+  assert(holeCommitment(cards, holeSalt()) == expectedHole,
+         "hole cards do not open the dealt commitment");
 
   const src: Vector<7, Card> = [
     cards[0], cards[1],
@@ -122,11 +168,8 @@ export circuit revealHand(
   ];
 
   // Each claimed card must sit at a DISTINCT position among the seven.
-  // Checked as an implication per (claim, position) pair -- 35 constraints on
-  // plain values, rather than obliviously selecting the cards in-circuit.
   const pick = handPick();
   const claimed = claimedHand();
-
   for (const i of 0..5) {
     assert(pick[i] < 7, "pick out of range");
     for (const k of 0..5) {
@@ -139,6 +182,57 @@ export circuit revealHand(
       assert(!at || (claimed[i].id == src[j].id), "claimed card not in hand");
     }
   }
+  return claimed;
+}
+
+// ---- circuits --------------------------------------------------------------
+
+/**
+ * The dealer opens a hand, fixing the deck, the board and both seats' cards
+ * before anyone can act. Immutable once written.
+ */
+export circuit openHand(
+  handId: Bytes<32>,
+  deckCommit: Bytes<32>,
+  boardCommit: Bytes<32>,
+  hole0Commit: Bytes<32>,
+  hole1Commit: Bytes<32>,
+  seat0Key: Bytes<32>,
+  seat1Key: Bytes<32>
+): [] {
+  assert(!hands.member(disclose(handId)), "hand already open");
+  assert(disclose(seat0Key) != disclose(seat1Key), "seats must differ");
+  assert(disclose(hole0Commit) != disclose(hole1Commit), "seats must hold different cards");
+
+  hands.insert(disclose(handId), HandSetup {
+    deckCommit: disclose(deckCommit),
+    boardCommit: disclose(boardCommit),
+    hole0Commit: disclose(hole0Commit),
+    hole1Commit: disclose(hole1Commit),
+    seat0Key: disclose(seat0Key),
+    seat1Key: disclose(seat1Key)
+  });
+  handsOpened.increment(1);
+}
+
+/**
+ * A voluntary SHOW. Publishes the packed rank, which is what a player does at
+ * a real showdown when they want the pot.
+ *
+ * Be precise about what this leaks: the packed rank encodes the category and
+ * every tiebreaker, so publishing it publishes the hand's composition (though
+ * not its suits). That is correct for a player choosing to show. A player who
+ * does not want to reveal that uses muckHand or beatOpponent.
+ */
+export circuit revealHand(
+  handId: Bytes<32>,
+  seat: Uint<8>,
+  board: Vector<5, Card>
+): Uint<32> {
+  const key = authoriseSeat(handId, seat);
+  assertUnresolved(key);
+
+  const claimed = verifiedClaim(handId, seat, board);
 
   // Publishing the rank is the entire point: it is what lets the pot move
   // while the cards stay in the muck. Declared explicitly so the disclosure
@@ -148,61 +242,28 @@ export circuit revealHand(
   return value;
 }
 
-// Concede without revealing anything. No cards, no rank, no proof of holdings
-// -- exactly what sliding your hand face down into the muck means. This is the
-// circuit that makes the privacy claim true rather than approximate.
-export circuit muckHand(handId: Bytes<32>, seat: Uint<8>): [] {
-  const key = disclose(seatKey(handId, seat));
-  assert(holeCommits.member(key), "no commitment for seat");
-  assert(!shownRanks.member(key), "already shown");
-  assert(!muckedSeats.member(key), "already mucked");
-  muckedSeats.insert(key);
-}
-
-// Beat a rank that is already on the table, WITHOUT publishing your own.
-//
-// The opponent has shown, so their rank is public. This proves only the
-// comparison -- the chain learns "this hand beats that one" and nothing more
-// about how. A winner using this reveals strictly less than one who shows.
-export circuit beatShownRank(
+/**
+ * Beat the rank your opponent has already shown, WITHOUT publishing your own.
+ *
+ * The threshold is read from the ledger, never taken from the caller — passing
+ * your own threshold was NF-005, and a losing hand could win by passing zero.
+ * The chain learns only that the comparison held.
+ */
+export circuit beatOpponent(
   handId: Bytes<32>,
   seat: Uint<8>,
-  board: Vector<5, Card>,
-  threshold: Uint<32>
+  board: Vector<5, Card>
 ): [] {
-  const cards = holeCards();
-  const salt = holeSalt();
-  const key = disclose(seatKey(handId, seat));
+  const key = authoriseSeat(handId, seat);
+  assertUnresolved(key);
 
-  assert(holeCommits.member(key), "no commitment for seat");
-  assert(holeCommits.lookup(key) == disclose(holeCommitment(cards, salt)),
-         "hole cards do not open the commitment");
-  assert(!shownRanks.member(key), "already shown");
-  assert(!beatShown.member(key), "already claimed the beat");
+  // The opponent must have shown; their published rank IS the threshold.
+  const otherSeat = (seat == 0 ? 1 : 0) as Uint<8>;
+  const otherKey = disclose(seatKeyOf(handId, otherSeat));
+  assert(shownRanks.member(otherKey), "opponent has not shown");
+  const threshold = shownRanks.lookup(otherKey);
 
-  for (const i of 0..5) {
-    checkCard(board[i]);
-  }
-
-  const src: Vector<7, Card> = [
-    cards[0], cards[1],
-    board[0], board[1], board[2], board[3], board[4]
-  ];
-
-  const pick = handPick();
-  const claimed = claimedHand();
-  for (const i of 0..5) {
-    assert(pick[i] < 7, "pick out of range");
-    for (const k of 0..5) {
-      if (i < k) {
-        assert(pick[i] != pick[k], "duplicate card in claimed hand");
-      }
-    }
-    for (const j of 0..7) {
-      const at = pick[i] == (j as Uint<8>);
-      assert(!at || (claimed[i].id == src[j].id), "claimed card not in hand");
-    }
-  }
+  const claimed = verifiedClaim(handId, seat, board);
 
   // The ONLY thing that escapes this circuit is that the comparison held.
   // The rank itself never reaches the ledger.
@@ -210,15 +271,31 @@ export circuit beatShownRank(
   beatShown.insert(key);
 }
 
-// Compares the two proven ranks and writes a payout attestation the relayer
-// carries to whichever chains the two players funded from.
+/**
+ * Concede without revealing anything. No cards, no rank, no proof of holdings
+ * — exactly what sliding your hand face down into the muck means.
+ *
+ * Still requires the seat secret: before the audit, anyone who knew a public
+ * handId could muck someone else's hand and hand them the pot (NF-002).
+ */
+export circuit muckHand(handId: Bytes<32>, seat: Uint<8>): [] {
+  const key = authoriseSeat(handId, seat);
+  assertUnresolved(key);
+  muckedSeats.insert(key);
+}
+
+/**
+ * Resolves the hand and writes a payout attestation bound to (handId, winner),
+ * so the EVM side can check the attestation commits to the outcome it is being
+ * asked to pay rather than trusting the relayer's word.
+ */
 export circuit settle(handId: Bytes<32>): Uint<8> {
-  const k0 = disclose(seatKey(handId, 0));
-  const k1 = disclose(seatKey(handId, 1));
+  assert(hands.member(disclose(handId)), "no such hand");
   assert(!settledHands.member(disclose(handId)), "hand already settled");
 
-  // Each seat resolved one of three ways: showed a rank, proved a beat without
-  // showing, or mucked. Every combination has to name a winner.
+  const k0 = disclose(seatKeyOf(handId, 0));
+  const k1 = disclose(seatKeyOf(handId, 1));
+
   const shown0 = shownRanks.member(k0);
   const shown1 = shownRanks.member(k1);
   const muck0 = muckedSeats.member(k0);
@@ -229,9 +306,8 @@ export circuit settle(handId: Bytes<32>): Uint<8> {
   assert(shown0 || muck0 || beat0, "seat 0 has not acted");
   assert(shown1 || muck1 || beat1, "seat 1 has not acted");
 
-  // A hand where both sides beat the other cannot happen: beatShownRank
-  // requires an opponent rank already on the table, so only one seat can hold
-  // the beat. Asserted rather than assumed.
+  // beatOpponent requires the opponent to have shown, so only one seat can
+  // ever hold the beat. Asserted rather than assumed.
   assert(!(beat0 && beat1), "both seats claim the beat");
 
   // 0 = seat 0, 1 = seat 1, 2 = split.

@@ -7,3 +7,7 @@ dist/
 .DS_Store
 midnight-level-db/
 .omc/
+
+# Private witness stores — hole cards and salts live here
+.nightfold-state/
+.probe-state/

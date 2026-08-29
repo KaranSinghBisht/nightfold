@@ -4,70 +4,78 @@
   padding: 0 28px 80px;
 }
 
-/* ---- nav ----------------------------------------------------------------- */
+/* ---- hero shell ----------------------------------------------------------- */
 
-.land__nav {
+.land__hero {
+  position: relative;
+  min-height: min(94vh, 900px);
   display: flex;
-  align-items: center;
-  gap: 26px;
-  padding: 20px 0;
+  flex-direction: column;
+  margin: 0 -28px;
+  padding: 0 28px 56px;
+  isolation: isolate;
+  overflow: hidden;
 }
+
+.land__bg { position: absolute; inset: 0; z-index: -2; }
+.land__canvas { width: 100%; height: 100%; display: block; }
+
+/* Keeps the type readable over a moving field: darkens the lower half and
+   feathers the shader into the page ground at the seam. */
+.land__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(180deg, rgba(11,15,20,.58) 0%, rgba(11,15,20,.10) 34%, rgba(11,15,20,.62) 76%, var(--ground) 100%),
+    radial-gradient(62% 58% at 22% 56%, rgba(11,15,20,.86), transparent 70%);
+}
+
+/* ---- nav ------------------------------------------------------------------ */
+
+.land__nav { display: flex; align-items: center; gap: 26px; padding: 22px 0; }
 .land__wordmark {
   font-family: var(--display);
-  font-size: 1.4rem;
+  font-size: 1.45rem;
   color: var(--ink);
   margin-right: auto;
 }
 .land__navLinks { display: flex; gap: 12px; font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; }
-.land__navLinks a { color: var(--muted); text-decoration: none; }
+.land__navLinks a { color: var(--ink-dim); text-decoration: none; }
 .land__navLinks a:hover { color: var(--brass); }
 .land__navLinks span { color: var(--line); }
 
 .land__enter {
   font-size: .64rem;
   letter-spacing: .12em;
-  padding: 9px 18px;
+  padding: 10px 20px;
   border-radius: 999px;
-  border: 1px solid var(--line);
-  background: transparent;
+  border: 1px solid rgba(232,230,225,.28);
+  background: rgba(11,15,20,.4);
+  backdrop-filter: blur(6px);
   color: var(--ink);
   cursor: pointer;
-  transition: border-color .2s ease, background .2s ease;
 }
 .land__enter:hover { border-color: var(--brass); color: var(--brass); }
 
-/* ---- hero ----------------------------------------------------------------- */
+/* ---- hero body ------------------------------------------------------------ */
 
-.land__hero {
-  position: relative;
-  min-height: min(86vh, 780px);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 60px 0 64px;
-  isolation: isolate;
+.land__heroBody {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 48px;
+  align-items: center;
+  padding: 40px 0;
 }
 
-/* spotlight cones, as over a card table */
-.land__beams {
-  position: absolute;
-  inset: -80px -10% 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(42% 58% at 24% -6%, rgba(233, 213, 161, .10), transparent 65%),
-    radial-gradient(36% 52% at 62% -10%, rgba(233, 213, 161, .07), transparent 60%),
-    radial-gradient(50% 44% at 85% 0%, rgba(31, 75, 68, .35), transparent 70%);
-  filter: blur(2px);
-}
-
-.land__heroInner { display: flex; flex-direction: column; gap: 26px; }
+.land__heroText { display: flex; flex-direction: column; gap: 22px; }
 
 .land__eyebrow {
   font-size: .66rem;
   letter-spacing: .18em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink-dim);
 }
 
 .land__title {
@@ -76,14 +84,16 @@
   margin: 0;
   font-family: var(--display);
   font-weight: 400;
-  font-size: clamp(3.4rem, 9.6vw, 7.6rem);
-  line-height: .98;
+  font-size: clamp(3.2rem, 8.6vw, 6.6rem);
+  line-height: .96;
   letter-spacing: -.015em;
 }
-.land__t1 { color: var(--ink-dim); }
+.land__t1 { color: var(--ink); }
 .land__t2 { color: var(--brass); }
 
-.land__cta { display: flex; align-items: center; gap: 20px; padding-top: 8px; }
+.land__sub { font-size: 1rem; line-height: 1.6; color: var(--ink-dim); max-width: 46ch; }
+
+.land__cta { display: flex; align-items: center; gap: 20px; padding-top: 4px; }
 
 .land__play {
   font-family: var(--body);
@@ -95,10 +105,8 @@
   background: var(--ink);
   color: var(--ground);
   cursor: pointer;
-  transition: background .2s ease, transform .12s ease;
 }
 .land__play:hover { background: var(--brass); color: #12171c; }
-.land__play:active { transform: translateY(1px); }
 
 .land__repo {
   font-size: .88rem;
@@ -108,15 +116,7 @@
 }
 .land__repo:hover { color: var(--brass); }
 
-/* the two pairs of cards, floating over the hero on wide screens */
-.land__heroCards {
-  position: absolute;
-  right: 0;
-  top: 96px;
-  display: flex;
-  gap: 30px;
-  margin: 0;
-}
+.land__heroCards { display: flex; gap: 30px; margin: 0; }
 .land__cardGroup { display: flex; flex-wrap: wrap; gap: 8px; max-width: 148px; }
 .land__cap {
   flex-basis: 100%;
@@ -128,25 +128,22 @@
 .land__cap--won { color: var(--brass); }
 .land__cap--muck { color: var(--sealed); }
 
-/* NightPool-style bracket annotations */
 .land__brackets {
-  position: absolute;
-  right: 0;
-  bottom: 68px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 6px;
   font-size: .64rem;
   letter-spacing: .1em;
-  color: var(--muted);
+  color: var(--ink-dim);
   white-space: pre;
+  opacity: .8;
 }
 
 @media (max-width: 900px) {
-  .land__heroCards { position: static; padding-top: 26px; }
+  .land__hero { min-height: 0; }
+  .land__heroBody { grid-template-columns: 1fr; gap: 34px; }
   .land__brackets { display: none; }
-  .land__hero { min-height: 0; justify-content: flex-start; }
 }
 
 /* ---- sections ------------------------------------------------------------ */

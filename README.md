@@ -22,7 +22,7 @@ Nightfold settles a hand without either player's cards ever reaching a chain.
 | At showdown you can | What reaches the ledger |
 |---|---|
 | `revealHand` | Your hand's rank. |
-| `beatShownRank` | That you beat a rank already on the table. Nothing about your own. |
+| `beatOpponent` | That you beat a rank already on the table. Nothing about your own. |
 | `muckHand` | **Nothing.** No cards, no rank, no proof of holdings. |
 
 Meanwhile the chips come from wherever you already keep them — one player
@@ -54,6 +54,8 @@ npm run check      # every suite below, no chain required
 
 | Suite | What it proves |
 |---|---|
+| `check:security` | every Compact exploit an external audit **confirmed** is now rejected |
+| `check:evmsec` | the cage drain, the escrow trust boundary, and the refund block are closed |
 | `check:rank` | 22 ordered poker hands rank correctly |
 | `check:fuzz` | 20,000 random hands order identically to an independent reference evaluator |
 | `check:hand` | a full hand deals, reveals and settles; four cheating paths are rejected |
@@ -84,14 +86,30 @@ Circuit costs, measured:
 
 | Circuit | Prover key | Prove |
 |---|---|---|
-| `commitDeal` | 5.22 MB | ~3.7s |
-| `revealHand` | 9.96 MB | ~7.0s |
-| `beatShownRank` | 9.96 MB | ~7.0s |
-| `settle` | 9.96 MB | ~7.0s |
-| `muckHand` | 2.82 MB | ~2.0s |
+| `openHand` | — | dealer fixes deck, board and both hands |
+| `revealHand` | ~10 MB | ~7.0s |
+| `beatOpponent` | ~10 MB | ~7.0s |
+| `muckHand` | ~2.8 MB | ~2.0s |
+| `settle` | ~10 MB | ~7.0s |
 
-Five circuits ship **10,595 bytes** of verifier keys in the deploy transaction —
-the whole contract costs less than a JPEG thumbnail to deploy.
+Verifier keys are flat at ~2 KB per circuit regardless of complexity, so the
+whole contract costs less than a JPEG thumbnail to deploy.
+
+## Security
+
+Audited 2026-08-29: **10 findings, 5 critical**, four of them confirmed by
+executing them — a fabricated royal flush, a forced muck of someone else's seat,
+self-selected hole cards, and a drained cage.
+
+**All ten are fixed**, and every confirmed exploit has a regression test that
+re-runs the attack and asserts it now fails. Full write-up, including what
+changed and why, in [`docs/security.md`](docs/security.md).
+
+The headline change: a hand is now **opened by the dealer** with commitments to
+the deck, the board and both seats' hole cards, plus a seat authorisation key
+per player. Nothing can be acted on until all of that is fixed, so a player
+cannot choose their cards, substitute a board, act for a seat they do not hold,
+or pick the threshold they must beat.
 
 ## Limitations
 

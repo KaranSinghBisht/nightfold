@@ -45,6 +45,24 @@ export async function buildWallet({ seed = GENESIS_SEED, env = LOCAL } = {}) {
   return wallet;
 }
 
+/**
+ * The witness-store password. A repository-public fallback is permitted ONLY
+ * against the local devnet, where the wallet seed is itself a published dev
+ * fixture. Anywhere else, refuse to start without a real secret.
+ */
+function statePassword(env) {
+  const fromEnv = process.env.NIGHTFOLD_STATE_PASSWORD;
+  if (fromEnv) return fromEnv;
+  if (env.networkId !== 'undeployed') {
+    throw new Error(
+      'NIGHTFOLD_STATE_PASSWORD is required outside the local devnet. ' +
+      'The private state store holds hole cards and salts; refusing to ' +
+      'encrypt it with a password published in this repository.'
+    );
+  }
+  return 'Nightfold-Devnet-2026-local';
+}
+
 /** Assemble the provider bundle a contract call needs. */
 export function buildProviders(wallet, { env = LOCAL, privateStateDir = '.nightfold-state' } = {}) {
   // Scopes the witness store to this wallet, so two players sharing a machine
@@ -54,12 +72,11 @@ export function buildProviders(wallet, { env = LOCAL, privateStateDir = '.nightf
   return {
     privateStateProvider: levelPrivateStateProvider({
       privateStateStoreName: privateStateDir,
-      // Encrypts the witness store at rest. Real deployments must set
-      // NIGHTFOLD_STATE_PASSWORD; the fallback exists only so a local devnet
-      // runs out of the box. The SDK requires at least three of uppercase,
-      // lowercase, digits and symbols.
-      privateStoragePasswordProvider: () =>
-        process.env.NIGHTFOLD_STATE_PASSWORD ?? 'Nightfold-Devnet-2026-local',
+      // Encrypts the witness store — which holds hole cards and salts — at
+      // rest. FAILS CLOSED off the local devnet (NF-009): the earlier version
+      // silently fell back to a password published in this repository, so any
+      // copied state directory was readable by anyone.
+      privateStoragePasswordProvider: () => statePassword(env),
       accountId,
     }),
     publicDataProvider: indexerPublicDataProvider(env.indexer, env.indexerWS),

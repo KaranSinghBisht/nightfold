@@ -14,7 +14,8 @@ import { foundry } from 'viem/chains';
 import { randomBytes } from 'node:crypto';
 
 import { Contract, ledger, pureCircuits } from '../contracts/managed/nightfold-tc/contract/index.js';
-import { witnesses, emptyPrivateState, stage, cards, showHand, bestFive } from './witnesses.mjs';
+import { cards, showHand } from './witnesses.mjs';
+import { newTable, call as mnCall, dealHand, stage, emptyPS } from './testkit.mjs';
 import { compileEscrow } from './evm/compile.mjs';
 import { readOutcome, relayHand, hex } from './relayer.mjs';
 
@@ -29,19 +30,9 @@ const check = (name, ok, detail = '') => {
 
 // ---- Midnight side ---------------------------------------------------------
 
-const ADDRESS = rt.sampleContractAddress();
-const COIN_PK = '0'.repeat(64);
-const contract = new Contract(witnesses);
-const init = contract.initialState(rt.createConstructorContext(emptyPrivateState(), COIN_PK));
-let mnState = init.currentContractState;
-
-function mnCall(name, ps, ...args) {
-  const ctx = rt.createCircuitContext(ADDRESS, COIN_PK, mnState, ps);
-  const res = contract.impureCircuits[name](ctx, ...args);
-  mnState = res.context.currentQueryContext.state;
-  return res.result;
-}
-const mnLedger = () => ledger(mnState);
+const hv = (h) => pureCircuits.handValue(h);
+const table = newTable(Contract);
+const mnLedger = () => ledger(table.state);
 
 // ---- EVM side --------------------------------------------------------------
 
@@ -60,15 +51,24 @@ const { abi, bytecode } = compileEscrow();
 const { contractAddress: escrow } = await wait(
   await wallet('deployer').deployContract({ abi, bytecode, args: [acct.relayer.address] })
 );
+const jump = async (secs) => {
+  for (const [method, params] of [['evm_increaseTime', [secs]], ['evm_mine', []]]) {
+    await fetch(RPC, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+  }
+};
 
 // ---- the hand --------------------------------------------------------------
 
-const handIdBytes = randomBytes(32);
-const handIdHex = hex(handIdBytes);
-
 const board = cards('Ah Kd 7c 3c 9c');
-const alice = { seat: 0n, hole: cards('As Kc'), ps: emptyPrivateState() };
-const bob   = { seat: 1n, hole: cards('Qc 5c'), ps: emptyPrivateState() };
+const ALICE = cards('As Kc');
+const BOB = cards('Qc 5c');
+
+// The dealer opens the hand on Midnight, committing deck, board and both
+// seats' cards before anyone can act.
+const hand = dealHand(table, pureCircuits, { board, hole0: ALICE, hole1: BOB });
+const handIdBytes = hand.handId;
+const handIdHex = hex(handIdBytes);
 
 console.log('┌─ EVM (public) ────────────────  ┌─ MIDNIGHT (private) ──────────');
 console.log(`│ escrow ${escrow.slice(0, 10)}…            │ contract deployed`);
@@ -80,70 +80,60 @@ console.log(`│ pot ${formatEther(STAKE * 2n)} ETH staked           │`);
 
 check('pot is held by the escrow', (await pub.getBalance({ address: escrow })) === STAKE * 2n);
 
-// 2. cards on Midnight
-for (const p of [alice, bob]) {
-  p.ps = stage(p.ps, { hole: p.hole });
-  mnCall('commitDeal', p.ps, handIdBytes, p.seat);
-}
-console.log(`│                                 │ 2 hole commitments, 0 cards`);
+console.log(`│                                 │ deck + board + 2 hole commitments`);
 
-// 3. showdown — ranks only
-for (const p of [alice, bob]) {
-  const best = bestFive(p.hole, board, (h) => pureCircuits.handValue(h));
-  p.ps = stage(p.ps, { claimed: best.hand, pick: best.idx });
-  p.rank = mnCall('revealHand', p.ps, handIdBytes, p.seat, board);
-}
-mnCall('settle', alice.ps, handIdBytes);
-console.log(`│                                 │ ranks ${alice.rank} vs ${bob.rank}`);
+// 2. showdown — Alice shows, Bob MUCKS. The private path, which the audit
+//    (NF-007) showed the relayer could not previously carry at all.
+const aliceRank = mnCall(table, 'revealHand', stage(hand.seats[0], ALICE, board, hv), handIdBytes, 0n, board);
+mnCall(table, 'muckHand', hand.seats[1], handIdBytes, 1n);
+mnCall(table, 'settle', emptyPS(), handIdBytes);
+console.log(`│                                 │ seat 0 shows ${aliceRank}, seat 1 mucks`);
 console.log(`│                                 │ settled, attestation written`);
 
 // 4. the relayer carries it across
-const outcome = readOutcome(mnLedger(), handIdBytes, (h, s) => pureCircuits.seatKey(h, s));
+const outcome = readOutcome(mnLedger(), handIdBytes, (h, s) => pureCircuits.seatKeyOf(h, s));
 check('relayer reads a settled outcome', outcome !== null);
-check('relayer names seat 1', outcome.winner === 1);
+check('relayer carries a MUCKED hand (NF-007)', outcome !== null && outcome.resolution[1] === 'muck');
+check('relayer names seat 0 as winner', outcome.winner === 0);
 
-const bobBefore = await pub.getBalance({ address: acct.bob.address });
 const relayed = await relayHand(outcome, {
-  base: async (id, winner, attestation) =>
-    wait(await wallet('relayer').writeContract({
-      address: escrow, abi, functionName: 'settle', args: [id, winner, attestation],
-    })),
+  base: async (id, winner) => {
+    // The escrow recomputes the attestation itself; the relayer cannot name a
+    // winner the hand did not produce (NF-006).
+    const att = await pub.readContract({ address: escrow, abi, functionName: 'expectedAttestation', args: [id, winner] });
+    return wait(await wallet('relayer').writeContract({
+      address: escrow, abi, functionName: 'proposeSettlement', args: [id, winner, att],
+    }));
+  },
 });
-const bobAfter = await pub.getBalance({ address: acct.bob.address });
+await jump(601);
+const aliceBefore = await pub.getBalance({ address: acct.alice.address });
+await wait(await wallet('bob').writeContract({ address: escrow, abi, functionName: 'finaliseSettlement', args: [handIdHex] }));
+await wait(await wallet('alice').writeContract({ address: escrow, abi, functionName: 'withdraw', args: [] }));
+const aliceAfter = await pub.getBalance({ address: acct.alice.address });
 
-console.log(`│ pot → bob                       │`);
+console.log(`│ pot → alice                     │`);
 console.log('└─────────────────────────────────└───────────────────────────────\n');
 
-check('pot paid out on the EVM chain', bobAfter - bobBefore === STAKE * 2n, `bob +${formatEther(bobAfter - bobBefore)} ETH`);
+check('pot paid out on the EVM chain', aliceAfter > aliceBefore, `alice +${formatEther(aliceAfter - aliceBefore)} ETH (less gas)`);
 check('escrow emptied', (await pub.getBalance({ address: escrow })) === 0n);
-check('attestation on the EVM chain matches Midnight',
-  (await pub.readContract({ address: escrow, abi, functionName: 'hands', args: [handIdHex] }))[5]
-    === hex(outcome.attestation));
 check('relayed to every configured chain', relayed.length === 1 && relayed[0].chain === 'base');
 
 // ---- what leaked? ----------------------------------------------------------
 
 console.log('what the two public ledgers know:');
 const l = mnLedger();
-console.log('  midnight  :', l.holeCommits.size(), 'commitments,', l.shownRanks.size(),
-            'ranks,', l.settledHands.size(), 'settled');
+console.log('  midnight  :', l.hands.size(), 'hand,', l.shownRanks.size(),
+            'rank,', l.muckedSeats.size(), 'muck,', l.settledHands.size(), 'settled');
 console.log('  evm       : stake, pot, winner address, attestation');
 console.log('  neither   : any card either player held\n');
 
 // The transcript must not contain the losing hand anywhere.
-const transcript = JSON.stringify({
-  midnight: {
-    commits: [...l.holeCommits].map(([k, v]) => [hex(k), hex(v)]),
-    ranks: [...l.shownRanks].map(([k, v]) => [hex(k), String(v)]),
-    attest: [...l.payoutAttest].map(([k, v]) => [hex(k), hex(v)]),
-  },
-  evm: { escrow, winner: acct.bob.address, pot: String(STAKE * 2n) },
-});
-
-const loserIds = alice.hole.map((c) => Number(c.id));
-check("loser's cards absent from the combined transcript",
-  !loserIds.some((id) => new RegExp(`\\b${id}\\b`).test(transcript)),
-  `alice held ${showHand(alice.hole)} — never published`);
+// The MUCKING seat published nothing at all: no rank, no cards.
+const k1 = pureCircuits.seatKeyOf(handIdBytes, 1n);
+check("the mucking seat published no rank", !l.shownRanks.member(k1),
+  `bob held ${showHand(BOB)} — never published`);
+check('exactly one rank is public in the whole hand', l.shownRanks.size() === 1n);
 
 console.log(failures === 0
   ? 'cross-chain hand complete: private on Midnight, paid on EVM'

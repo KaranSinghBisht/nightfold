@@ -10,13 +10,29 @@
 import { createServer, request as httpRequest } from 'node:http';
 
 const LISTEN = Number(process.env.PROXY_PORT ?? 6301);
+// Bind loopback explicitly. `.listen(port)` binds every interface, which on a
+// shared network exposes the local proof server through an unauthenticated
+// proxy (NF-010).
+const HOST = '127.0.0.1';
+// A proof preimage is small; anything larger is a mistake or an attack.
+const MAX_BODY = 8 * 1024 * 1024;
 const TARGET_HOST = '127.0.0.1';
 const TARGET_PORT = Number(process.env.PROOF_PORT ?? 6300);
 
 createServer((req, res) => {
   const chunks = [];
-  req.on('data', (c) => chunks.push(c));
+  let size = 0;
+  req.on('data', (c) => {
+    size += c.length;
+    if (size > MAX_BODY) {
+      res.writeHead(413).end('request too large');
+      req.destroy();
+      return;
+    }
+    chunks.push(c);
+  });
   req.on('end', () => {
+    if (res.writableEnded) return;
     const body = Buffer.concat(chunks);
     const started = Date.now();
 
@@ -51,6 +67,6 @@ createServer((req, res) => {
     });
     proxied.end(body);
   });
-}).listen(LISTEN, () => {
-  console.log(`proof proxy: 127.0.0.1:${LISTEN} → 127.0.0.1:${TARGET_PORT}\n`);
+}).listen(LISTEN, HOST, () => {
+  console.log(`proof proxy: ${HOST}:${LISTEN} → ${TARGET_HOST}:${TARGET_PORT}  (diagnostic only)\n`);
 });

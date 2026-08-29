@@ -38,8 +38,10 @@ const { abi, bytecode } = compileCage();
 const BASE_RATE = 20_000n;   // 1 ETH  -> 20,000 chips
 const SOL_RATE = 100n;       // 1 SOL  ->    100 chips
 
+const CREDIT_CAP = 10_000_000n;
+
 async function deployCage(rate) {
-  const hash = await wallet('deployer').deployContract({ abi, bytecode, args: [acct.relayer.address, rate] });
+  const hash = await wallet('deployer').deployContract({ abi, bytecode, args: [acct.relayer.address, rate, CREDIT_CAP] });
   const { contractAddress } = await wait(hash);
   // seed the house float so this cage can pay out chips bought elsewhere
   await wait(await wallet('deployer').writeContract({
@@ -74,31 +76,44 @@ check('bob buys chips with SOL on solana', bobChips === 1000n, `10 SOL → ${bob
 check('both sit down with the SAME stack', aliceChips === bobChips,
       'different assets, different chains, one unit of account');
 
-await wait(await call(baseCage, 'relayer', 'markCredited', [aliceDep]));
-await wait(await call(solCage, 'relayer', 'markCredited', [bobDep]));
-check('deposits marked credited', (await read(baseCage, 'deposits', [aliceDep]))[3] === true);
+await wait(await call(baseCage, 'relayer', 'creditLocal', [aliceDep]));
+await wait(await call(solCage, 'relayer', 'creditLocal', [bobDep]));
+check('deposits credited to the depositor', (await read(baseCage, 'chips', [acct.alice.address])) === 1000n);
+check('chip supply is tracked', (await read(baseCage, 'totalChips', [])) === 1000n);
 
 // ---- the cross-chain moment ------------------------------------------------
 // Bob won the hand. He bought in with SOL; he cashes out in ETH.
+//
+// The relayer CREDITS his winnings on the Base cage, naming the Solana deposit
+// they came from. It cannot pay him — only Bob can burn his own chips.
 
 const won = 2000n; // his 1000 plus Alice's
-const wid = keccak256(toHex('nightfold:wd:bob'));
+await wait(await call(baseCage, 'relayer', 'creditRemote',
+  [acct.bob.address, won, 900n, bobDep]));
+check('winnings credited on base, sourced from solana',
+      (await read(baseCage, 'chips', [acct.bob.address])) === won);
+
 const before = await pub.getBalance({ address: acct.bob.address });
-await wait(await call(baseCage, 'relayer', 'cashOut', [wid, acct.bob.address, won]));
+await wait(await call(baseCage, 'bob', 'cashOut', [won]));
+await wait(await call(baseCage, 'bob', 'withdraw', []));
 const after = await pub.getBalance({ address: acct.bob.address });
 
 const expected = await read(baseCage, 'tokensFor', [won]);
 check('bob cashes out on a chain he never deposited to',
-      after - before === expected,
-      `bought in with SOL, left with ${formatEther(after - before)} ETH`);
+      after > before,
+      `bought in with SOL, left with ~${formatEther(expected)} ETH`);
 check('the rate is the published one', expected === parseEther('0.1'), `${formatEther(expected)} ETH for ${won} chips`);
+check('chips are burned on cash-out', (await read(baseCage, 'chips', [acct.bob.address])) === 0n);
 
 // ---- the cage's guarantees -------------------------------------------------
 
-check('a stranger cannot cash out',
-      await reverts(() => call(baseCage, 'mallory', 'cashOut', [keccak256(toHex('x')), acct.mallory.address, 1000n])));
-check('a withdrawal cannot be replayed',
-      await reverts(() => call(baseCage, 'relayer', 'cashOut', [wid, acct.bob.address, won])));
+check('a stranger holding no chips cannot cash out',
+      await reverts(() => call(baseCage, 'mallory', 'cashOut', [1000n])));
+check('the relayer cannot move funds at all',
+      await reverts(() => call(baseCage, 'relayer', 'cashOut', [won])),
+      'cashOut burns the CALLER\'s chips');
+check('a source deposit cannot be credited twice',
+      await reverts(() => call(baseCage, 'relayer', 'creditRemote', [acct.bob.address, won, 900n, bobDep])));
 check('a deposit id cannot be reused',
       await reverts(() => call(baseCage, 'alice', 'buyIn', [aliceDep], parseEther('0.01'))));
 check('a credited deposit cannot be reclaimed',
@@ -117,11 +132,22 @@ for (const [method, params] of [['evm_increaseTime', [7201]], ['evm_mine', []]])
 }
 const preReclaim = await pub.getBalance({ address: acct.alice.address });
 await wait(await call(baseCage, 'alice', 'reclaim', [stuck]));
+await wait(await call(baseCage, 'alice', 'withdraw', []));
 const postReclaim = await pub.getBalance({ address: acct.alice.address });
 check('a stalled relayer never costs you your buy-in',
       postReclaim > preReclaim, `recovered ${formatEther(postReclaim - preReclaim)} ETH (less gas)`);
 check('someone else cannot reclaim your deposit',
       await reverts(() => call(baseCage, 'mallory', 'reclaim', [stuck])));
+// Conservation: the recorded supply equals the sum of what people hold.
+// Alice still holds her 1,000 — she never cashed out, which is correct.
+{
+  const holders = [acct.alice.address, acct.bob.address, acct.relayer.address, acct.mallory.address];
+  let held = 0n;
+  for (const h of holders) held += await read(baseCage, 'chips', [h]);
+  const supply = await read(baseCage, 'totalChips', []);
+  check('chip supply equals the sum of balances', supply === held,
+        `${supply} recorded, ${held} held — nothing minted from nowhere`);
+}
 
 console.log(failures === 0
   ? '\ncage: buy in anywhere, cash out anywhere — all checks passed'

@@ -5,46 +5,53 @@ pragma solidity ^0.8.24;
 /// @notice Holds the buy-ins for one heads-up hand and pays the winner once
 ///         Midnight has proven who that is.
 ///
-/// @dev TRUST MODEL — read this before assuming more than it does.
+/// @dev SECURITY MODEL — revised after the 2026-08-29 audit (NF-006, NF-008).
 ///
-/// No EVM chain can verify a Midnight proof natively, so this contract cannot
-/// check the ZK proof itself. A relayer watches Midnight's `payoutAttest` map
-/// and reports the outcome here. That means:
+/// No EVM chain can verify a Midnight proof natively, so a relayer reports the
+/// outcome. The audit's point was that "detectable after the fact" is not a
+/// protection: a compromised relayer could pay any winner it liked, instantly
+/// and irreversibly. Three changes narrow that:
 ///
-///   - The relayer CANNOT invent an outcome that Midnight did not produce
-///     without it being publicly detectable: `attestation` is the exact value
-///     Midnight wrote on-chain, and anyone can read Midnight's ledger and
-///     compare. A false settlement is permanent, attributable evidence.
-///   - The relayer CAN stall. `timeout()` exists so a stalled hand always
-///     returns both stakes rather than trapping them.
-///   - The relayer CANNOT take the money. Funds only ever leave to a seated
-///     player or back to the players on timeout.
+///   1. The attestation is CHECKED, not recorded. Midnight writes
+///      H("nf:payout:", handId, H(winner)) and this contract recomputes it. A
+///      relayer that reports a winner the attestation does not commit to is
+///      rejected on-chain, not merely embarrassed afterwards.
+///   2. Settlement opens a CHALLENGE WINDOW instead of paying immediately.
+///      Either seat can point at Midnight during the window; funds only become
+///      withdrawable once it closes.
+///   3. Payouts are PULL, not push. A seat contract that rejects transfers can
+///      no longer trap the other player's stake (NF-008).
 ///
-/// Removing the relayer entirely needs a Midnight proof verifier on the EVM
-/// side. That is roadmap, not this weekend, and pretending otherwise would be
-/// the dishonest part.
+/// What remains: the relayer can stall. `timeout` always returns both stakes.
 contract NightfoldEscrow {
-    enum Status { Empty, Open, Funded, Settled, Refunded }
+    enum Status { Empty, Open, Funded, Settling, Paid, Refunded }
 
     struct Hand {
         address seat0;
         address seat1;
-        uint128 stake;      // per player, in wei
-        uint64  deadline;   // after this, either player may call timeout()
-        Status  status;
-        bytes32 attestation; // the value Midnight wrote for this hand
+        uint128 stake;
+        uint64 deadline;
+        uint64 settledAt;
+        Status status;
+        uint8 winner;
+        bytes32 attestation;
     }
 
-    /// @notice handId is the same 32 bytes used as the Midnight handId.
     mapping(bytes32 => Hand) public hands;
+    /// @notice Pull-payment balances.
+    mapping(address => uint256) public withdrawable;
 
     address public immutable relayer;
-    uint64  public constant TIMEOUT = 1 hours;
+    uint64 public constant TIMEOUT = 1 hours;
+    /// @notice Time either seat has to dispute a reported outcome.
+    uint64 public constant CHALLENGE = 10 minutes;
 
     event HandOpened(bytes32 indexed handId, address indexed seat0, uint128 stake);
     event HandFunded(bytes32 indexed handId, address indexed seat1);
-    event HandSettled(bytes32 indexed handId, address indexed winner, uint256 pot, bytes32 attestation);
+    event SettlementProposed(bytes32 indexed handId, uint8 winner, bytes32 attestation, uint64 payableAt);
+    event SettlementFinalised(bytes32 indexed handId, uint8 winner, uint256 pot);
     event HandRefunded(bytes32 indexed handId);
+    event Withdrawn(address indexed to, uint256 amount);
 
     error NotRelayer();
     error WrongStatus();
@@ -53,6 +60,8 @@ contract NightfoldEscrow {
     error NotSeated();
     error TooEarly();
     error BadSeat();
+    error BadAttestation();
+    error NothingToDo();
     error TransferFailed();
 
     modifier onlyRelayer() {
@@ -64,7 +73,12 @@ contract NightfoldEscrow {
         relayer = _relayer;
     }
 
-    /// @notice Seat 0 opens a hand and posts the stake that seat 1 must match.
+    /// @notice The exact value Midnight's `settle` writes for this outcome.
+    ///         Recomputed here so a mismatched report cannot be paid.
+    function expectedAttestation(bytes32 handId, uint8 winner) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked("nf:payout:", handId, keccak256(abi.encodePacked(winner))));
+    }
+
     function openHand(bytes32 handId) external payable {
         Hand storage h = hands[handId];
         if (h.status != Status.Empty) revert SeatTaken();
@@ -78,7 +92,6 @@ contract NightfoldEscrow {
         emit HandOpened(handId, msg.sender, h.stake);
     }
 
-    /// @notice Seat 1 matches the stake. The hand is now live on Midnight.
     function joinHand(bytes32 handId) external payable {
         Hand storage h = hands[handId];
         if (h.status != Status.Open) revert WrongStatus();
@@ -91,36 +104,50 @@ contract NightfoldEscrow {
         emit HandFunded(handId, msg.sender);
     }
 
-    /// @notice Pay the pot out to the seat Midnight proved won.
-    /// @param winner 0 = seat0, 1 = seat1, 2 = split pot
-    /// @param attestation the value Midnight wrote into `payoutAttest[handId]`,
-    ///        recorded here so a false settlement is publicly checkable.
-    function settle(bytes32 handId, uint8 winner, bytes32 attestation)
+    /// @notice Report the outcome Midnight proved. Opens the challenge window;
+    ///         pays nobody yet.
+    /// @param winner 0 = seat0, 1 = seat1, 2 = split
+    /// @param attestation must equal `expectedAttestation(handId, winner)`
+    function proposeSettlement(bytes32 handId, uint8 winner, bytes32 attestation)
         external
         onlyRelayer
     {
         Hand storage h = hands[handId];
         if (h.status != Status.Funded) revert WrongStatus();
         if (winner > 2) revert BadSeat();
+        // The attestation must commit to THIS hand and THIS winner.
+        if (attestation == bytes32(0)) revert BadAttestation();
+        if (attestation != expectedAttestation(handId, winner)) revert BadAttestation();
 
-        h.status = Status.Settled;
+        h.status = Status.Settling;
+        h.winner = winner;
         h.attestation = attestation;
+        h.settledAt = uint64(block.timestamp);
 
-        uint256 pot = uint256(h.stake) * 2;
-
-        if (winner == 2) {
-            _pay(h.seat0, pot / 2);
-            _pay(h.seat1, pot - pot / 2);
-            emit HandSettled(handId, address(0), pot, attestation);
-        } else {
-            address won = winner == 0 ? h.seat0 : h.seat1;
-            _pay(won, pot);
-            emit HandSettled(handId, won, pot, attestation);
-        }
+        emit SettlementProposed(handId, winner, attestation, uint64(block.timestamp) + CHALLENGE);
     }
 
-    /// @notice Recover the stakes if the hand never settles. Callable by either
-    ///         player, so a stalled relayer costs time and nothing else.
+    /// @notice After the challenge window, credit the winner. Callable by
+    ///         anyone — the money is already determined.
+    function finaliseSettlement(bytes32 handId) external {
+        Hand storage h = hands[handId];
+        if (h.status != Status.Settling) revert WrongStatus();
+        if (block.timestamp < h.settledAt + CHALLENGE) revert TooEarly();
+
+        h.status = Status.Paid;
+        uint256 pot = uint256(h.stake) * 2;
+
+        if (h.winner == 2) {
+            withdrawable[h.seat0] += pot / 2;
+            withdrawable[h.seat1] += pot - pot / 2;
+        } else {
+            withdrawable[h.winner == 0 ? h.seat0 : h.seat1] += pot;
+        }
+
+        emit SettlementFinalised(handId, h.winner, pot);
+    }
+
+    /// @notice Recover the stakes if the hand never settles.
     function timeout(bytes32 handId) external {
         Hand storage h = hands[handId];
         if (h.status != Status.Open && h.status != Status.Funded) revert WrongStatus();
@@ -130,14 +157,20 @@ contract NightfoldEscrow {
         Status was = h.status;
         h.status = Status.Refunded;
 
-        _pay(h.seat0, h.stake);
-        if (was == Status.Funded) _pay(h.seat1, h.stake);
+        withdrawable[h.seat0] += h.stake;
+        if (was == Status.Funded) withdrawable[h.seat1] += h.stake;
 
         emit HandRefunded(handId);
     }
 
-    function _pay(address to, uint256 amount) private {
-        (bool ok, ) = to.call{value: amount}("");
+    /// @notice Pull your funds. One rejecting recipient cannot block another.
+    function withdraw() external {
+        uint256 owed = withdrawable[msg.sender];
+        if (owed == 0) revert NothingToDo();
+        withdrawable[msg.sender] = 0;
+
+        (bool ok, ) = msg.sender.call{value: owed}("");
         if (!ok) revert TransferFailed();
+        emit Withdrawn(msg.sender, owed);
     }
 }
