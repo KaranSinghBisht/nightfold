@@ -1,0 +1,242 @@
+.land {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 28px 80px;
+}
+
+/* ---- hero ---------------------------------------------------------------- */
+
+.land__hero {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 56px;
+  align-items: center;
+  padding: 96px 0 84px;
+}
+
+.land__heroText { display: flex; flex-direction: column; gap: 18px; }
+
+.land__title {
+  font-family: var(--display);
+  font-size: clamp(4rem, 12vw, 7.5rem);
+  font-weight: 400;
+  line-height: .9;
+  letter-spacing: -.02em;
+  margin: 0;
+}
+
+.land__lede {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: clamp(1.25rem, 2.6vw, 1.75rem);
+  line-height: 1.35;
+  color: var(--ink-dim);
+  max-width: 24ch;
+  margin: 0;
+}
+
+.land__cta { display: flex; align-items: center; gap: 18px; padding-top: 10px; }
+
+.land__play {
+  font-family: var(--body);
+  font-size: .95rem;
+  font-weight: 600;
+  padding: 12px 26px;
+  border: none;
+  border-radius: 3px;
+  background: var(--brass);
+  color: #12171c;
+  cursor: pointer;
+  transition: background .2s ease, transform .12s ease;
+}
+.land__play:hover { background: #d8b33a; }
+.land__play:active { transform: translateY(1px); }
+
+.land__repo {
+  font-size: .88rem;
+  color: var(--ink-dim);
+  text-decoration-color: var(--line);
+  text-underline-offset: 4px;
+}
+.land__repo:hover { color: var(--brass); }
+
+/* the hero figure carries the whole argument in two pairs of cards */
+.land__cards { display: flex; gap: 34px; margin: 0; }
+.land__cardGroup { display: flex; flex-wrap: wrap; gap: 8px; max-width: 148px; }
+.land__cap {
+  flex-basis: 100%;
+  font-family: var(--mono);
+  font-size: .62rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding-top: 4px;
+}
+.land__cap--won { color: var(--brass); }
+.land__cap--muck { color: var(--sealed); }
+
+/* ---- sections ------------------------------------------------------------ */
+
+.land__section {
+  padding: 68px 0;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.land__section--alt { }
+
+.land__col { display: flex; flex-direction: column; gap: 14px; max-width: 62ch; }
+
+.land__h2 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(1.8rem, 3.4vw, 2.5rem);
+  line-height: 1.12;
+  margin: 0;
+}
+
+.land p { margin: 0; line-height: 1.6; color: var(--ink-dim); }
+.land em { color: var(--ink); font-style: italic; }
+.land code {
+  font-family: var(--mono);
+  font-size: .86em;
+  color: var(--brass);
+}
+
+/* ---- showdown options ---------------------------------------------------- */
+
+.land__options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+.land__opt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.land__opt--mid { border-color: var(--brass-dim); }
+.land__opt--best {
+  border-color: var(--brass);
+  background: linear-gradient(165deg, rgba(201, 162, 39, .08), var(--surface) 65%);
+}
+
+.land__optName {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 400;
+  margin: 0;
+}
+.land__optCode { font-size: .74rem; letter-spacing: .02em; }
+.land__optText { font-size: .9rem; }
+
+.land__note {
+  font-size: .9rem;
+  color: var(--muted);
+  max-width: 62ch;
+  border-left: 2px solid var(--sealed);
+  padding-left: 16px;
+}
+
+/* ---- the cage ------------------------------------------------------------ */
+
+.land__cage {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 28px;
+  border: 1px solid var(--felt-deep);
+  border-radius: 5px;
+  background: linear-gradient(170deg, var(--felt), var(--felt-deep));
+}
+
+.land__cageIn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, .22);
+  border-radius: 3px;
+}
+
+.land__chain {
+  font-family: var(--mono);
+  font-size: .64rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.land__chain--base { color: var(--base-blue); }
+.land__chain--sol { color: var(--sol-purple); }
+.land__amt { font-size: 1rem; color: #f0eee9; font-weight: 500; }
+
+.land__cageChips {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  padding: 18px 0 6px;
+}
+.land__chipCount {
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--brass);
+  line-height: 1;
+}
+.land__chipLabel { font-size: .88rem; color: rgba(240, 238, 233, .78); }
+
+.land__cageOut {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255, 255, 255, .1);
+}
+.land__outLabel { font-size: .86rem; color: rgba(240, 238, 233, .72); }
+
+/* ---- lanes --------------------------------------------------------------- */
+
+.land__lanes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+.land__lane {
+  padding: 22px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.land__lane--mid { background: var(--felt-deep); border-color: var(--felt); }
+
+.land__laneName {
+  font-size: .98rem;
+  font-weight: 700;
+  margin: 0;
+}
+.land__lane p { font-size: .88rem; }
+
+/* ---- footer -------------------------------------------------------------- */
+
+.land__foot {
+  padding-top: 60px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+}
+.land__footNote { font-size: .84rem; color: var(--muted); max-width: 58ch; }
+
+@media (max-width: 900px) {
+  .land__hero { grid-template-columns: 1fr; gap: 40px; padding: 60px 0 56px; }
+  .land__options, .land__lanes { grid-template-columns: 1fr; }
+  .land__cage { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .land { padding: 0 18px 56px; }
+  .land__cards { gap: 20px; }
+}
