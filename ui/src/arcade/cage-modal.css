@@ -66,25 +66,60 @@
 
 .cageM__label { font-size: .52rem; letter-spacing: .2em; color: #5A6874; }
 
-.cageM__chains { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+/* ---- the markets ----------------------------------------------------------
+   A row per chain, priced like a market rather than a radio button: what it is
+   worth, which way it has moved, and — the part that matters here — how many
+   chips it converts to. The rate is derived, so this row and the cage agree by
+   construction. */
 
-.cageM__chain {
-  display: flex;
+.cageM__markets { display: flex; flex-direction: column; gap: 5px; }
+
+.cageM__mkt {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 64px auto;
   align-items: center;
-  gap: 8px;
-  padding: 10px 9px;
+  gap: 11px;
+  padding: 9px 11px;
   border: 1px solid #1B2530;
-  background: rgba(255, 255, 255, .015);
+  background: rgba(255, 255, 255, .012);
   color: #B3BFCA;
   font-family: var(--mono);
-  font-size: .58rem;
-  letter-spacing: .06em;
   cursor: pointer;
   text-align: left;
 }
-.cageM__chain:hover { border-color: #31414F; }
-.cageM__chain--on { background: rgba(92, 155, 255, .07); color: #EEF3F8; }
-.cageM__chainName { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cageM__mkt:hover { border-color: #31414F; background: rgba(255, 255, 255, .03); }
+.cageM__mkt--on { background: rgba(92, 155, 255, .08); }
+
+.cageM__mktMark { line-height: 0; }
+
+.cageM__mktName { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cageM__mktName b {
+  font-size: .62rem;
+  letter-spacing: .1em;
+  font-weight: 400;
+  color: #EEF3F8;
+}
+.cageM__mktName em {
+  font-style: normal;
+  font-size: .52rem;
+  letter-spacing: .04em;
+  color: #5A6874;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cageM__mkt--on .cageM__mktName em { color: #8195A9; }
+
+.cageM__mktPrice { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.cageM__mktPrice b {
+  font-size: .62rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: #EEF3F8;
+}
+.cageM__mktPrice em { font-style: normal; font-size: .52rem; font-variant-numeric: tabular-nums; }
+.cageM__up { color: #4ADE80; }
+.cageM__down { color: #FF6B6B; }
 
 .cageM__amount {
   display: flex;

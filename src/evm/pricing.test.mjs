@@ -89,10 +89,19 @@ check(`${ethIn.toFixed(4)} ETH buys 1,000 chips`, bought === 1_000n, `${bought} 
 
 const usdIn = usdOf('ETH', ethIn);
 const usdOut = usdOf('SOL', Number(outWei) / 1e18);
-// Tolerance is one chip: the cage floors on the way out, so a round trip can
-// leave at most a chip of dust behind. It must never create value.
+// Two tolerances, for two different reasons.
+//
+// Downward: the cage floors on the way out, so a round trip can leave up to a
+// chip of dust behind. That is fine — dust belongs to the cage.
+//
+// Upward: these are IEEE-754 dollars, and `usdOut <= usdIn` fails on noise of
+// order 1e-14 even when the two are the same number. An exact inequality is the
+// wrong test on floats; what matters is that no MEANINGFUL value is created, so
+// the epsilon is a billionth of a cent — far below anything an arbitrageur
+// could act on, and far above the noise.
+const DUST = 1e-9;
 check('those chips redeem for the same USD in SOL',
-  usdOut <= usdIn && usdIn - usdOut < CHIP_USD,
+  usdOut - usdIn < DUST && usdIn - usdOut < CHIP_USD,
   `$${usdOut.toFixed(2)} out vs $${usdIn.toFixed(2)} in`);
 
 // The bug this file exists for. The rates used to be hand-picked: 20,000 chips

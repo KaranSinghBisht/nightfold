@@ -15,7 +15,11 @@ import { fileURLToPath } from 'node:url';
 
 const FILE = fileURLToPath(new URL('../pricing.json', import.meta.url));
 const IDS = { ETH: 'ethereum', BTC: 'bitcoin', SOL: 'solana', ADA: 'cardano', NEAR: 'near' };
-const URL_ = `https://api.coingecko.com/api/v3/simple/price?ids=${Object.values(IDS).join(',')}&vs_currencies=usd`;
+// /coins/markets gives price, 24h change and a 7-day series in one call, which
+// is what the cage picker needs to show a market rather than a number.
+const URL_ =
+  'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd' +
+  `&ids=${Object.values(IDS).join(',')}&sparkline=true&price_change_percentage=24h`;
 
 const current = JSON.parse(readFileSync(FILE, 'utf8'));
 
@@ -29,14 +33,30 @@ try {
   process.exit(1);
 }
 
+const byId = Object.fromEntries(live.map((c) => [c.id, c]));
+
+/** 168 hourly points is more than a 70px sparkline can show; take 32. */
+function thin(series, want = 32) {
+  if (!Array.isArray(series) || series.length === 0) return [];
+  const step = (series.length - 1) / (want - 1);
+  return Array.from({ length: want }, (_, i) => {
+    const v = series[Math.round(i * step)];
+    return Math.round(v * 1e4) / 1e4;
+  });
+}
+
 const assets = {};
+const change24h = {};
+const spark = {};
 for (const [ticker, id] of Object.entries(IDS)) {
-  const usd = live[id]?.usd;
-  if (typeof usd !== 'number') {
+  const row = byId[id];
+  if (!row || typeof row.current_price !== 'number') {
     console.error(`no USD price came back for ${ticker} — pricing.json left as it was`);
     process.exit(1);
   }
-  assets[ticker] = usd;
+  assets[ticker] = row.current_price;
+  change24h[ticker] = Math.round((row.price_change_percentage_24h ?? 0) * 100) / 100;
+  spark[ticker] = thin(row.sparkline_in_7d?.price ?? []);
 }
 
 /**
@@ -57,8 +77,10 @@ const next = {
   ...current,
   chipUsd,
   snapshotUtc: new Date().toISOString(),
-  source: 'coingecko simple/price',
+  source: 'coingecko coins/markets',
   assets,
+  change24h,
+  spark,
 };
 
 writeFileSync(FILE, JSON.stringify(next, null, 2) + '\n');

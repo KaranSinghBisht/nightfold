@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { PixelMark } from './PixelMark';
-import { CHAINS, chipsForUnits, rawUnitsForChips, usdOfChips, type Chain } from './chains';
+import { CHAINS, chipsForUnits, rawUnitsForChips, usdOfChips, rateOf, priceOf, changeOf, sparkOf, type Chain } from './chains';
+import { Sparkline } from './Sparkline';
 import './cage-modal.css';
 
 export interface BuyIn {
@@ -58,20 +59,34 @@ export function CageModal({ onClose, onConfirm }: Props) {
 
         <div className="cageM__body">
           <span className="cageM__label">BRING</span>
-          <div className="cageM__chains">
-            {CHAINS.map((c) => (
-              <button
-                key={c.id}
-                className={`cageM__chain${c.id === chain.id ? ' cageM__chain--on' : ''}`}
-                onClick={() => pick(c)}
-                style={c.id === chain.id ? { borderColor: c.colour } : undefined}
-              >
-                <span style={{ color: c.colour, lineHeight: 0 }}>
-                  <PixelMark grid={c.mark} size={18} />
-                </span>
-                <span className="cageM__chainName">{c.name}</span>
-              </button>
-            ))}
+          <div className="cageM__markets">
+            {CHAINS.map((c) => {
+              const change = changeOf(c);
+              return (
+                <button
+                  key={c.id}
+                  className={`cageM__mkt${c.id === chain.id ? ' cageM__mkt--on' : ''}`}
+                  onClick={() => pick(c)}
+                  style={c.id === chain.id ? { borderColor: c.colour } : undefined}
+                >
+                  <span className="cageM__mktMark" style={{ color: c.colour }}>
+                    <PixelMark grid={c.mark} size={18} />
+                  </span>
+                  <span className="cageM__mktName">
+                    <b>{c.name.toUpperCase()}</b>
+                    {/* The answer to "what do I get", on the row itself. */}
+                    <em>{rateOf(c)}</em>
+                  </span>
+                  <Sparkline points={sparkOf(c)} change={change} />
+                  <span className="cageM__mktPrice">
+                    <b>{priceOf(c)}</b>
+                    <em className={change >= 0 ? 'cageM__up' : 'cageM__down'}>
+                      {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+                    </em>
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <span className="cageM__label">AMOUNT</span>

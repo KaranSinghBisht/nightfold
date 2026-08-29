@@ -161,7 +161,10 @@ export const CHAINS: Chain[] = [
 ];
 
 /** "1 SOL = 1,000 chips" — the string the rail shows, derived not typed. */
-export const rateOf = (c: Chain) => `1 ${c.ticker} = ${fmt(chipsPerToken(c.ticker))} chips`;
+export const rateOf = (c: Chain) => {
+  const n = chipsPerToken(c.ticker);
+  return `1 ${c.ticker} = ${fmt(n)} ${n === 1 ? 'chip' : 'chips'}`;
+};
 
 /** "$103.20" — what one unit of that asset is worth at the snapshot. */
 export const usdOf = (c: Chain) => `$${fmt(USD[c.ticker])}`;
@@ -190,4 +193,20 @@ export function chipsForUnits(ticker: string, units: number): number {
 export const usdOfChips = (chips: number) => `$${fmt(Math.round(chips * CHIP_USD))}`;
 
 export const SNAPSHOT = pricing.snapshotUtc;
+
+const CHANGE: Record<string, number> = pricing.change24h ?? {};
+const SPARK: Record<string, number[]> = pricing.spark ?? {};
+
+/** Signed 24h move for a chain's asset, at the snapshot. */
+export const changeOf = (c: Chain) => CHANGE[c.ticker] ?? 0;
+
+/** Seven days of price for the picker's sparkline. */
+export const sparkOf = (c: Chain) => SPARK[c.ticker] ?? [];
+
+/** "$2,435.00" — priced the way a market would show it. */
+export function priceOf(c: Chain): string {
+  const v = USD[c.ticker];
+  const dp = v >= 100 ? 2 : v >= 1 ? 3 : 4;
+  return `$${v.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp })}`;
+}
 
