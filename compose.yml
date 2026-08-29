@@ -1,0 +1,61 @@
+# Local Midnight devnet for Nightfold.
+#
+# Start order matters: the indexer panics on block 1 if it attaches before the
+# node has produced a few blocks, so it depends on the node being healthy.
+#
+# Known behaviour from a previous build on this stack: a local devnet degrades
+# after roughly 600 blocks (~1 hour) and wallet sync silently stalls with no
+# error. The fix is a full `docker compose down && up`, not a restart of one
+# service.
+
+services:
+  proof-server:
+    image: 'midnightntwrk/proof-server:8.1.0'
+    command: ['midnight-proof-server', '-v']
+    ports:
+      - '127.0.0.1:6300:6300'
+    environment:
+      RUST_BACKTRACE: 'full'
+    healthcheck:
+      test: ['CMD-SHELL', 'echo > /dev/tcp/127.0.0.1/6300']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  node:
+    image: 'midnightntwrk/midnight-node:1.0.0'
+    ports:
+      - '127.0.0.1:9944:9944'
+    environment:
+      CFG_PRESET: 'dev'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f -s http://127.0.0.1:9944/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  indexer:
+    image: 'midnightntwrk/indexer-standalone:4.3.3'
+    ports:
+      - '127.0.0.1:8088:8088'
+    environment:
+      RUST_LOG: 'indexer=info,chain_indexer=info,indexer_api=info,wallet_indexer=info,indexer_common=info,fastrace_opentelemetry=off,info'
+      APP__INFRA__NODE__URL: 'ws://node:9944'
+      APP__APPLICATION__NETWORK_ID: 'undeployed'
+      APP__INFRA__STORAGE__PASSWORD: 'indexer'
+      APP__INFRA__PUB_SUB__PASSWORD: 'indexer'
+      APP__INFRA__LEDGER_STATE_STORAGE__PASSWORD: 'indexer'
+      APP__INFRA__SECRET: '303132333435363738393031323334353637383930313233343536373839303132'
+      APP__INFRA__SPO_NODE__URL: 'ws://node:9944'
+      APP__INFRA__SPO_NODE__BLOCKFROST_ID: 'nightfold-dev'
+    healthcheck:
+      test: ['CMD-SHELL', 'cat /var/run/indexer-standalone/running']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    depends_on:
+      node:
+        condition: service_healthy

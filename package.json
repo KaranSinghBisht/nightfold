@@ -18,15 +18,38 @@
     "check:rank": "node src/handrank.check.mjs",
     "check:fuzz": "node src/handrank.fuzz.mjs 20000",
     "check:hand": "node src/hand.e2e.mjs",
-    "check": "npm run typecheck && npm run check:rank && npm run check:fuzz && npm run check:hand && npm run check:muck && npm run check:escrow && npm run check:crosschain",
+    "check": "npm run typecheck && npm run check:rank && npm run check:fuzz && npm run check:hand && npm run check:muck && npm run check:game && npm run check:escrow && npm run check:crosschain",
     "anvil": "anvil --port 8545 --silent",
     "check:escrow": "node src/evm/escrow.test.mjs",
     "check:crosschain": "node src/crosschain.e2e.mjs",
-    "check:muck": "node src/muck.e2e.mjs"
+    "check:muck": "node src/muck.e2e.mjs",
+    "check:game": "node src/game/game.test.mjs",
+    "devnet": "./scripts/devnet.sh",
+    "proof:real": "node src/midnight/realproof.mjs"
   },
   "dependencies": {
-    "@midnight-ntwrk/compact-runtime": "^0.16.0",
-    "solc": "^0.8.36",
-    "viem": "^2.56.0"
+    "@midnight-ntwrk/compact-runtime": "0.16.0",
+    "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+    "@midnight-ntwrk/midnight-js-types": "4.1.1",
+    "@midnight-ntwrk/midnight-js-utils": "4.1.1",
+    "@midnight-ntwrk/wallet-sdk": "1.2.0",
+    "@midnight-ntwrk/testkit-js": "4.1.1",
+    "pino": "^9.0.0",
+    "pino-pretty": "^13.0.0",
+    "rxjs": "^7.8.2",
+    "ws": "^8.18.0",
+    "viem": "^2.56.0",
+    "solc": "^0.8.36"
+  },
+  "resolutions": {
+    "@midnight-ntwrk/wallet-sdk": "1.2.0"
+  },
+  "overrides": {
+    "@midnight-ntwrk/wallet-sdk": "1.2.0"
   }
 }
