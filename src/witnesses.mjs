@@ -27,6 +27,7 @@ export function emptyPrivateState() {
   return {
     secret: randomBytes(32), hole: [], salt: randomBytes(32), boardSalt: randomBytes(32),
     claimed: [], pick: [], dealt: [], dealSalts: [],
+    stack: 0n, stackSalt: randomBytes(32), nextStackSalt: randomBytes(32),
   };
 }
 
@@ -63,6 +64,9 @@ export const witnesses = {
   handPick: ({ privateState }) => [privateState, privateState.pick],
   dealtCards: ({ privateState }) => [privateState, privateState.dealt ?? []],
   dealSalts: ({ privateState }) => [privateState, privateState.dealSalts ?? []],
+  stackAmount: ({ privateState }) => [privateState, privateState.stack ?? 0n],
+  stackSalt: ({ privateState }) => [privateState, privateState.stackSalt],
+  nextStackSalt: ({ privateState }) => [privateState, privateState.nextStackSalt],
 };
 
 /** Every witness the contract requires, for anyone wanting to check coverage. */

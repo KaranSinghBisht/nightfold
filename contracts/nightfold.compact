@@ -54,6 +54,8 @@ export ledger muckedSeats: Set<Bytes<32>>;
 export ledger beatShown: Set<Bytes<32>>;
 /** Floors a seat has proven its hand reaches, without publishing the rank. */
 export ledger provenFloors: Map<Bytes<32>, Uint<32>>;
+/** Hiding commitments to each seat's chip stack. Never the stack itself. */
+export ledger stackCommits: Map<Bytes<32>, Bytes<32>>;
 export ledger settledHands: Set<Bytes<32>>;
 export ledger payoutAttest: Map<Bytes<32>, Bytes<32>>;
 export ledger handsOpened: Counter;
@@ -85,6 +87,21 @@ witness dealtCards(): Vector<9, Card>;
 /** hole0 salt, hole1 salt, board salt — so openHand can check every opening. */
 witness dealSalts(): Vector<3, Bytes<32>>;
 // The five cards being claimed, and where each sits among the seven.
+/**
+ * A seat's chip stack, and the salts that hide it.
+ *
+ * The cards were private and the money was not: NightfoldTable publishes every
+ * stack, so anyone watching knew exactly how much pressure each player could
+ * apply. At a real table you can see the chips, but on a public ledger the
+ * whole history is queryable forever — the same asymmetry that makes a
+ * published rank worse than a shown hand.
+ */
+witness stackAmount(): Uint<64>;
+witness stackSalt(): Bytes<32>;
+/** The salt for the stack AFTER a bet. A fresh one, or the new commitment
+    would be linkable to the old by anyone who guessed the difference. */
+witness nextStackSalt(): Bytes<32>;
+
 witness claimedHand(): Vector<5, Card>;
 witness handPick(): Vector<5, Uint<8>>;
 
@@ -129,6 +146,15 @@ export circuit boardCommitment(board: Vector<5, Card>, salt: Bytes<32>): Bytes<3
     persistentHash<Uint<8>>(board[2].id),
     persistentHash<Uint<8>>(board[3].id),
     persistentHash<Uint<8>>(board[4].id)
+  ]);
+}
+
+/** Binding + hiding commitment to a chip stack. */
+export circuit stackCommitment(amount: Uint<64>, salt: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "nf:stack:"),
+    persistentHash<Uint<64>>(amount),
+    salt
   ]);
 }
 
@@ -363,6 +389,79 @@ export circuit beatOpponent(
   // The rank itself never reaches the ledger.
   assert(evaluate5(claimed) > threshold, "hand does not beat the shown rank");
   beatShown.insert(key);
+}
+
+/**
+ * Register a hiding commitment to your chip stack.
+ *
+ * The amount never reaches the ledger. What is stored is a commitment the
+ * player can later open in-circuit to prove things about the stack without
+ * revealing it.
+ */
+export circuit openStack(handId: Bytes<32>, seat: Uint<8>, commit: Bytes<32>): [] {
+  const key = authoriseSeat(handId, seat);
+  assert(!stackCommits.member(key), "stack already committed");
+
+  // The commitment must actually open to a stack the caller holds, or it is
+  // a number with no meaning attached.
+  assert(stackCommitment(stackAmount(), stackSalt()) == disclose(commit),
+         "commitment does not open to the witnessed stack");
+
+  stackCommits.insert(key, disclose(commit));
+}
+
+/**
+ * Prove your stack covers a bet, without revealing the stack.
+ *
+ * This is what a chip tray does at a real table and what a public ledger
+ * cannot: everyone can see you are good for the bet, and nobody learns by how
+ * much. Knowing an opponent has exactly 43 chips left tells you what they can
+ * and cannot do for the rest of the hand, which is a read they never agreed to
+ * give you.
+ *
+ * The only thing that escapes is that the comparison held.
+ */
+export circuit proveCanCover(handId: Bytes<32>, seat: Uint<8>, amount: Uint<64>): [] {
+  const key = authoriseSeat(handId, seat);
+  assert(stackCommits.member(key), "no stack committed for this seat");
+
+  const stack = stackAmount();
+  assert(stackCommitment(stack, stackSalt()) == stackCommits.lookup(key),
+         "stack does not open its commitment");
+  assert(stack >= amount, "stack does not cover the bet");
+}
+
+/**
+ * Move chips out of a private stack.
+ *
+ * Proves, all at once: the old commitment opens to a stack you hold, that
+ * stack covers the bet, and the new commitment is to exactly what is left. The
+ * ledger sees two opaque values change and the amount that moved — never a
+ * balance.
+ *
+ * The new salt is a separate witness on purpose. Reusing the old one would let
+ * anyone who guessed the bet size confirm the guess by recomputing the
+ * commitment, which would undo the hiding a bet at a time.
+ */
+export circuit spendFromStack(
+  handId: Bytes<32>,
+  seat: Uint<8>,
+  amount: Uint<64>,
+  newCommit: Bytes<32>
+): [] {
+  const key = authoriseSeat(handId, seat);
+  assert(stackCommits.member(key), "no stack committed for this seat");
+
+  const stack = stackAmount();
+  assert(stackCommitment(stack, stackSalt()) == stackCommits.lookup(key),
+         "stack does not open its commitment");
+  assert(stack >= amount, "stack does not cover the bet");
+
+  const left = (stack - amount) as Uint<64>;
+  assert(stackCommitment(left, nextStackSalt()) == disclose(newCommit),
+         "new commitment is not the remainder");
+
+  stackCommits.insert(key, disclose(newCommit));
 }
 
 /**

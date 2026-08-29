@@ -30,6 +30,26 @@ A player picks how much to say, every hand. Four rungs, not one trick:
 
 Most on-chain poker has the top rung and nothing else.
 
+### Your stack is private too
+
+Hiding the cards and publishing the money only moves the leak. A visible stack
+is a read on the same player — it says what pressure they can apply, who is
+short, who is pot-committed — and on a public ledger it is queryable forever.
+
+So a stack is a commitment, not a number. `proveCanCover` proves it covers a
+bet; `spendFromStack` proves the new commitment holds *exactly* the remainder,
+under a fresh salt so two commitments by the same player cannot be linked.
+
+```
+alice's stack on the ledger:  e4a0ead04b493bb09d6cfdee884d1897…
+her balance on the ledger:    never written
+what the table knows:         she is good for 400, and for 1,000, and not 1,001
+```
+
+`npm run check:stack` asserts the exact boundary: covering the whole stack is
+provable, one chip more is not, and a commitment to a stack you don't hold is
+refused at the door.
+
 Meanwhile the chips come from wherever you already keep them — one player
 staking ETH on Base, the other SOL on Solana, at the same table.
 
@@ -74,6 +94,9 @@ npm run check      # every suite below, no chain required
 | `check:engine` | 400 hands of random legal play; chips conserved, no mucked card ever rendered |
 | `check:escrow` | strangers and players cannot settle; a stalled relayer cannot trap funds; a challenge costs a bond |
 | `check:crosschain` | a private Midnight outcome moves real ETH, and the transcript is grepped for the losing cards |
+| `check:stack` | a bet is covered without a balance ever reaching the ledger, and the remainder is exact |
+| `check:table` | betting is contract state — turn order, minimum raises, unmatched chips returned |
+| `check:loop` | **the whole thing, as one hand** — see below |
 
 Real ZK proofs run against a local devnet:
 
@@ -208,6 +231,35 @@ unit over, at the cap, and one unit under.
 
 **Nightfold is a demonstration of what the muck buys you. Do not put real money
 in it.**
+
+## The whole loop, in one command
+
+Pieces that pass separately have a habit of not fitting. `npm run check:loop`
+runs one hand across every part of the system, in order, against a live anvil:
+
+```
+1. BUY IN     alice  0.0821 ETH on Base    -> 1000 chips
+              bob    1.9342 SOL on Solana  -> 1000 chips
+
+2. BET        preflop  alice raise 10  pot 13     ← each line is a transaction
+              preflop  bob   call      pot 22
+              flop     bob   bet 30    pot 52
+              ...
+              river    bob   call      pot 282
+
+3. SHOWDOWN   board  Ah Kd 7c 3c 9c
+              bob shows a flush. alice mucks.
+              ledger: 1 rank, 1 muck, 1 settled
+
+4. PAY OUT    bob 1141, alice 859      (in 2,000, out 2,000)
+
+5. CASH OUT   bob leaves in ETH having arrived in SOL
+```
+
+The betting script says *what* happens, never who does it — the harness reads
+`toAct` from the contract before every action, so the demo cannot desync from
+the rules it is demonstrating. Step 3 greps the Midnight transcript for `As`
+and `Kc`, alice's actual cards, and fails if either appears.
 
 ## Layout
 

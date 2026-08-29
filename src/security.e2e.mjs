@@ -30,6 +30,7 @@ import { witnesses } from './witnesses.mjs';
 const emptyPS = () => ({
   secret: randomBytes(32), hole: [], salt: randomBytes(32), boardSalt: randomBytes(32),
   claimed: [], pick: [], dealt: [], dealSalts: [],
+  stack: 0n, stackSalt: randomBytes(32), nextStackSalt: randomBytes(32),
 });
 
 function newTable() {
