@@ -219,13 +219,11 @@ export function Lanes({ onPlay }: FootProps) {
             <h3 className="arcFoot__title">POWERED BY MIDNIGHT · SIX MONEY CHAINS</h3>
             <p className="arcFoot__text">
               Compact circuits hold the cards and fast chains hold the money. Two
-              audits found eighteen issues between them; all are fixed, each with a
-              regression test that runs the exploit to the money rather than stopping
-              at the first check. What remains is a trust assumption rather than a
-              bug: a settlement needs a signing quorum the relayer is not part of,
-              and either player can dispute one — but verifying a Midnight result on
-              an EVM chain needs a bridge nobody has built yet, so a colluding quorum
-              is still possible. The README says so plainly.
+              audits found eighteen issues between them and a third pass found six of them
+              still open, including two that empty the cage. This is a simulator with
+              a trusted dealer and a trusted committee, and it should not hold real
+              money. The README and docs/security.md carry the current status and the
+              runnable proofs rather than a summary that flatters it.
             </p>
           </div>
           <div className="arcFoot__stats">

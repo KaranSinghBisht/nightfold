@@ -102,9 +102,19 @@ re-tested those and went further, confirming five criticals with executed
 proofs. Both reports are in `.superstack/security-reports/`, including the
 evidence for every finding.
 
-Every confirmed finding from both audits is now fixed, and each one has a
-regression test that pursues the exploit to the money rather than stopping at
-the first check that happens to fail.
+**A third pass on 2026-08-29 disproved the claim that every finding was fixed.**
+Independent proof-of-concepts drain the cage twice over, settle a globally
+impossible deal, and break the proof harness. `.superstack/security-reports/`
+carries the report and the runnable evidence.
+
+Status of the 18: **5 fixed, 6 partial, 6 open, 1 accepted as out of scope.**
+
+Worse than the open findings: one of this repo's own regression tests passed
+for the wrong reason. `check:exploits` credited 20,000 chips against a cage
+backing 12,175, so it hit the solvency ceiling instead of the check it claimed
+to exercise. At exactly 12,175 the relayer credits an accomplice and the cage
+empties. A green suite is not evidence when the test never reaches the code it
+names.
 
 | Finding | Fix |
 |---|---|
