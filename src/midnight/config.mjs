@@ -10,7 +10,9 @@ export const LOCAL = {
   indexerWS: 'ws://127.0.0.1:8088/api/v3/graphql/ws',
   node: 'http://127.0.0.1:9944',
   nodeWS: 'ws://127.0.0.1:9944',
-  proofServer: 'http://127.0.0.1:6300',
+  // MIDNIGHT_PROOF_SERVER lets scripts/proof-proxy.mjs sit in front and print
+  // the rejection bodies the SDK swallows.
+  proofServer: process.env.MIDNIGHT_PROOF_SERVER ?? 'http://127.0.0.1:6300',
   faucet: '',
 };
 

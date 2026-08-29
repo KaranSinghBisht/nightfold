@@ -18,6 +18,20 @@ import * as nightfold from '../../contracts/managed/nightfold/contract/index.js'
 import { emptyPrivateState, stage, cards, showHand, bestFive } from '../witnesses.mjs';
 
 const PS_ID = 'nightfold';
+
+// The proof server's 400 body carries the real reason; the SDK surfaces only
+// "Bad Request". Set NIGHTFOLD_TRACE=1 to see what it actually said.
+if (process.env.NIGHTFOLD_TRACE) {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (...args) => {
+    const res = await realFetch(...args);
+    if (!res.ok) {
+      const body = await res.clone().text();
+      console.error(`\n>>> ${res.status} from ${args[0]}\n>>> ${body.slice(0, 800)}\n`);
+    }
+    return res;
+  };
+}
 const timings = [];
 
 /** Stage this player's private state, then run the circuit with a real proof. */
@@ -102,7 +116,13 @@ function witnessBundle() {
 }
 
 main().catch((e) => {
-  logger.error(e?.message ?? e);
-  if (e?.stack) console.error(e.stack.split('\n').slice(0, 12).join('\n'));
+  // The SDK wraps failures several layers deep; the useful message is usually
+  // at the bottom of the cause chain, not the top.
+  let err = e, depth = 0;
+  while (err && depth < 6) {
+    console.error(`\n[cause ${depth}] ${err.constructor?.name}: ${err.message}`);
+    if (err.stack) console.error(err.stack.split('\n').slice(1, 6).join('\n'));
+    err = err.cause; depth++;
+  }
   process.exit(1);
 });

@@ -54,11 +54,12 @@ export function buildProviders(wallet, { env = LOCAL, privateStateDir = '.nightf
   return {
     privateStateProvider: levelPrivateStateProvider({
       privateStateStoreName: privateStateDir,
-      // Encrypts the witness store at rest. This is a local devnet, so the
-      // password comes from the environment with a dev fallback rather than
-      // being hardcoded for real use.
+      // Encrypts the witness store at rest. Real deployments must set
+      // NIGHTFOLD_STATE_PASSWORD; the fallback exists only so a local devnet
+      // runs out of the box. The SDK requires at least three of uppercase,
+      // lowercase, digits and symbols.
       privateStoragePasswordProvider: () =>
-        process.env.NIGHTFOLD_STATE_PASSWORD ?? 'nightfold-local-devnet-key',
+        process.env.NIGHTFOLD_STATE_PASSWORD ?? 'Nightfold-Devnet-2026-local',
       accountId,
     }),
     publicDataProvider: indexerPublicDataProvider(env.indexer, env.indexerWS),

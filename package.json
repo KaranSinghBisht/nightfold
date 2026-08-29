@@ -47,9 +47,11 @@
     "solc": "^0.8.36"
   },
   "resolutions": {
-    "@midnight-ntwrk/wallet-sdk": "1.2.0"
+    "@midnight-ntwrk/wallet-sdk": "1.2.0",
+    "@midnight-ntwrk/onchain-runtime-v3": "3.1.0"
   },
   "overrides": {
-    "@midnight-ntwrk/wallet-sdk": "1.2.0"
+    "@midnight-ntwrk/wallet-sdk": "1.2.0",
+    "@midnight-ntwrk/onchain-runtime-v3": "3.1.0"
   }
 }
