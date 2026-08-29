@@ -2,7 +2,7 @@
    Dark-first: the subject is night, so :root carries the dark palette and the
    light theme is the override. */
 
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Public+Sans:ital,wght@0,300..800;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Public+Sans:ital,wght@0,300..800;1,400&family=JetBrains+Mono:wght@400;500;700&family=Silkscreen:wght@400;700&display=swap');
 
 :root {
   --ground:    #0B0F14;
@@ -25,6 +25,10 @@
   --display: 'Instrument Serif', Georgia, serif;
   --body: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, monospace;
+  /* Bitmap face for the arcade landing. Silkscreen has no punctuation quirks
+     at display size and carries no glyphs for the suit pips, which fall back
+     to the system face on purpose. */
+  --pixel: 'Silkscreen', 'JetBrains Mono', ui-monospace, monospace;
 }
 
 :root[data-theme='light'] {
@@ -71,3 +75,8 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* The landing page is a single committed visual world; card faces there follow
+   the bitmap face rather than the table's serif. */
+.arc .card { font-family: var(--pixel); font-weight: 700; }
+.arc .card__suit { font-family: var(--body); }

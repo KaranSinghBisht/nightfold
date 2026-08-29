@@ -11,10 +11,11 @@
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",
+    "@types/three": "^0.185.4",
     "framer-motion": "^13.1.1",
-    "ogl": "^1.0.11",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

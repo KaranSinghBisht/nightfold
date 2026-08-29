@@ -1,0 +1,251 @@
+/* ---- ticker ---------------------------------------------------------------- */
+
+.arcTick {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--edge);
+  border-bottom: 1px solid var(--edge);
+  background: var(--bg-2);
+  overflow: hidden;
+}
+.arcTick__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 30px;
+  padding: 15px var(--gutter);
+  max-width: var(--col);
+  margin: 0 auto;
+  flex-wrap: wrap;
+}
+.arcTick__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: .58rem;
+  letter-spacing: .16em;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.arcTick__pip { width: 6px; height: 6px; background: var(--phos); box-shadow: 0 0 8px rgba(255, 182, 39, .8); }
+
+/* ---- section shell --------------------------------------------------------- */
+
+.arcSec { position: relative; z-index: 1; padding: clamp(64px, 9vw, 108px) 0; }
+.arcSec--panel { background: var(--bg-2); border-top: 1px solid var(--edge); border-bottom: 1px solid var(--edge); }
+
+.arcSec__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  margin-bottom: 52px;
+}
+.arcSec__head--left { align-items: flex-start; text-align: left; }
+.arcSec__kicker { font-size: .58rem; letter-spacing: .2em; color: var(--steel-dim); }
+
+/* ---- three endings --------------------------------------------------------- */
+
+.arcEnd { display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; }
+
+.arcEnd__item { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+
+/* Numbered because these really are the three exits from a hand, not decoration. */
+.arcEnd__frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 92px;
+  height: 92px;
+  border: 3px solid var(--steel);
+  background: #070A0E;
+  color: var(--steel);
+  box-shadow: 0 0 24px rgba(134, 199, 219, .18);
+}
+.arcEnd__n {
+  position: absolute;
+  top: -14px;
+  left: -14px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  font-family: var(--pixel);
+  font-size: .78rem;
+  background: var(--steel);
+  color: #06090C;
+}
+.arcEnd__item--best .arcEnd__frame { border-color: var(--phos); color: var(--phos); box-shadow: 0 0 30px rgba(255, 182, 39, .3); }
+.arcEnd__item--best .arcEnd__n { background: var(--phos); }
+
+.arcEnd__name {
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: .96rem;
+  letter-spacing: .04em;
+  margin: 6px 0 0;
+  color: var(--paper);
+}
+.arcEnd__circuit { font-size: .6rem; letter-spacing: .04em; color: var(--phos-dim); }
+.arcEnd__text { font-size: .78rem; line-height: 1.8; color: var(--dim); margin: 0; max-width: 34ch; }
+
+/* ---- protocol cards -------------------------------------------------------- */
+
+.arcProto { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+
+.arcProto__card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px 24px;
+  border: 1px solid var(--edge-hot);
+  background: var(--panel);
+}
+.arcProto__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  background: var(--steel);
+  color: #06090C;
+}
+.arcProto__card:last-child .arcProto__icon { background: var(--seal); }
+.arcProto__name {
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: .74rem;
+  letter-spacing: .04em;
+  color: var(--steel);
+  margin: 0;
+}
+.arcProto__card:last-child .arcProto__name { color: var(--seal); }
+.arcProto__text { font-size: .78rem; line-height: 1.85; color: var(--dim); margin: 0; }
+
+.arcNote {
+  margin: 42px auto 0;
+  max-width: 70ch;
+  padding: 18px 22px;
+  border-left: 3px solid var(--seal);
+  background: rgba(255, 82, 82, .05);
+  font-size: .78rem;
+  line-height: 1.85;
+  color: var(--dim);
+}
+.arcNote b { color: var(--paper); font-weight: 700; }
+.arcNote code { color: var(--phos); }
+
+/* ---- the cage -------------------------------------------------------------- */
+
+.arcCage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 60px; align-items: center; }
+
+.arcCage__panel {
+  position: relative;
+  aspect-ratio: 6 / 5;
+  border: 3px solid var(--phos);
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 182, 39, .08) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(0deg, rgba(255, 182, 39, .08) 0 1px, transparent 1px 46px),
+    #070A0E;
+  box-shadow: 0 0 40px rgba(255, 182, 39, .16), inset 0 0 60px rgba(255, 182, 39, .05);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 34px;
+  padding: 30px;
+}
+.arcCage__proof { position: absolute; top: 14px; right: 16px; font-size: .5rem; letter-spacing: .1em; color: var(--faint); }
+.arcCage__addr { position: absolute; bottom: 14px; left: 16px; font-size: .5rem; letter-spacing: .06em; color: var(--faint); }
+
+.arcCage__ring { position: relative; display: grid; place-items: center; width: 150px; height: 150px; }
+.arcCage__ringIn {
+  position: absolute;
+  inset: 0;
+  border: 2px dashed var(--phos);
+  border-radius: 50%;
+  opacity: .8;
+}
+.arcCage__arc {
+  position: absolute;
+  inset: -12px;
+  border: 2px solid transparent;
+  border-top-color: var(--steel);
+  border-left-color: var(--steel);
+  border-radius: 50%;
+}
+.arcCage__chips {
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 182, 39, .3), rgba(255, 182, 39, .07));
+  font-family: var(--pixel);
+  font-size: .78rem;
+  color: var(--phos);
+  text-shadow: 0 0 14px rgba(255, 182, 39, .8);
+}
+
+.arcCage__status {
+  width: 100%;
+  max-width: 280px;
+  padding: 14px;
+  border: 1px solid var(--edge-hot);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.arcCage__statusCap { font-size: .52rem; letter-spacing: .18em; color: var(--faint); }
+.arcCage__statusVal { font-size: .62rem; letter-spacing: .1em; color: var(--phos); }
+
+.arcCage__body { display: flex; flex-direction: column; gap: 22px; }
+.arcCage__bullets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.arcCage__bullet { display: flex; align-items: center; gap: 12px; font-size: .62rem; letter-spacing: .12em; color: var(--steel); }
+.arcCage__sq { width: 8px; height: 8px; background: var(--phos); flex: none; }
+
+/* ---- lanes + footer -------------------------------------------------------- */
+
+.arcLanes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+.arcLane { display: flex; flex-direction: column; gap: 10px; padding: 24px 22px; border: 1px solid var(--edge); background: var(--panel); }
+.arcLane__name { font-family: var(--pixel); font-weight: 700; font-size: .68rem; letter-spacing: .04em; color: var(--phos); margin: 0; }
+.arcLane__text { font-size: .76rem; line-height: 1.8; color: var(--dim); margin: 0; }
+
+.arcFoot { position: relative; z-index: 1; border-top: 1px solid var(--edge); background: var(--bg-2); }
+.arcFoot__band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 40px;
+  align-items: center;
+  padding: 44px var(--gutter);
+  max-width: var(--col);
+  margin: 0 auto;
+}
+.arcFoot__title { font-family: var(--pixel); font-weight: 700; font-size: .92rem; letter-spacing: .04em; color: var(--paper); margin: 0 0 12px; }
+.arcFoot__text { font-size: .76rem; line-height: 1.8; color: var(--dim); margin: 0; max-width: 62ch; }
+.arcFoot__stats { display: flex; gap: 54px; }
+.arcFoot__stat { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.arcFoot__val { font-family: var(--pixel); font-weight: 700; font-size: 1.5rem; color: var(--phos); text-shadow: 0 0 16px rgba(255, 182, 39, .6); }
+.arcFoot__cap { font-size: .5rem; letter-spacing: .14em; color: var(--faint); }
+
+.arcFoot__end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  padding: 26px var(--gutter) 46px;
+  max-width: var(--col);
+  margin: 0 auto;
+  border-top: 1px solid var(--edge);
+}
+.arcFoot__note { font-size: .68rem; line-height: 1.8; color: var(--faint); max-width: 58ch; margin: 0; }
+.arcFoot__note a { color: var(--steel-dim); }
+
+@media (max-width: 960px) {
+  .arcEnd, .arcProto, .arcLanes { grid-template-columns: 1fr; }
+  .arcCage { grid-template-columns: 1fr; gap: 36px; }
+  .arcFoot__band { grid-template-columns: 1fr; gap: 26px; }
+  .arcFoot__stats { justify-content: flex-start; }
+  .arcFoot__stat { align-items: flex-start; }
+}

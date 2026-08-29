@@ -1,0 +1,264 @@
+/* Nightfold — amber phosphor.
+   A single committed visual world: a monochrome CRT terminal in a card room.
+   The scope sets every colour it uses explicitly, so it holds regardless of the
+   host theme the table page runs under. */
+
+.arc {
+  --bg:        #06080B;
+  --bg-2:      #0A0E13;
+  --panel:     #0C1116;
+  --edge:      #1B2530;
+  --edge-hot:  #31414F;
+
+  --phos:      #FFB627;
+  --phos-dim:  #A8761A;
+  --phos-wash: rgba(255, 182, 39, .14);
+
+  --steel:     #86C7DB;
+  --steel-dim: #4E7F91;
+
+  --seal:      #FF5252;
+  --seal-dim:  #8C2F2F;
+
+  --paper:     #F2EFE7;
+  --dim:       #8C99A6;
+  --faint:     #5A6874;
+
+  --gutter: 28px;
+  --col: 1180px;
+
+  position: relative;
+  background: var(--bg);
+  color: var(--paper);
+  font-family: var(--mono);
+  overflow-x: hidden;
+}
+
+/* ---- the tube ------------------------------------------------------------- */
+
+/* Scanlines and corner falloff over everything, so the page reads as one
+   screen rather than a shader parked behind flat HTML. */
+.arc__tube {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(180deg,
+      rgba(0, 0, 0, .26) 0 1px,
+      transparent 1px 3px),
+    radial-gradient(120% 100% at 50% 50%,
+      transparent 52%, rgba(0, 0, 0, .34) 88%, rgba(0, 0, 0, .62) 100%);
+  mix-blend-mode: multiply;
+}
+
+.arc__inner {
+  max-width: var(--col);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+  width: 100%;
+}
+
+/* ---- shared type ---------------------------------------------------------- */
+
+.arc__pixel { font-family: var(--pixel); font-weight: 700; letter-spacing: .02em; }
+
+.arc__h2 {
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: clamp(1.15rem, 2.6vw, 1.9rem);
+  letter-spacing: .04em;
+  color: var(--paper);
+  text-shadow: 0 0 18px rgba(255, 182, 39, .34);
+  margin: 0;
+}
+.arc__h2--phos {
+  color: var(--phos);
+  text-shadow: 0 0 10px rgba(255, 182, 39, .6), 0 0 40px rgba(255, 182, 39, .3);
+}
+
+.arc__rule {
+  width: 84px;
+  height: 3px;
+  background: var(--phos);
+  box-shadow: 0 0 14px rgba(255, 182, 39, .7);
+}
+
+.arc__lede {
+  font-size: .84rem;
+  line-height: 1.85;
+  color: var(--dim);
+  max-width: 60ch;
+  margin: 0;
+}
+
+/* ---- buttons -------------------------------------------------------------- */
+
+.arc__btn {
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: .72rem;
+  letter-spacing: .06em;
+  padding: 16px 26px;
+  border: 2px solid var(--phos);
+  background: var(--phos);
+  color: #10151A;
+  cursor: pointer;
+  box-shadow: 5px 5px 0 rgba(255, 182, 39, .22);
+  transition: box-shadow .16s ease, transform .16s ease, background .16s ease;
+}
+.arc__btn:hover { box-shadow: 7px 7px 0 rgba(255, 182, 39, .34); transform: translate(-1px, -1px); }
+.arc__btn:active { box-shadow: 2px 2px 0 rgba(255, 182, 39, .22); transform: translate(2px, 2px); }
+
+.arc__btn--ghost {
+  background: transparent;
+  color: var(--steel);
+  border-color: var(--steel);
+  box-shadow: 5px 5px 0 rgba(134, 199, 219, .18);
+}
+.arc__btn--ghost:hover {
+  background: rgba(134, 199, 219, .1);
+  box-shadow: 7px 7px 0 rgba(134, 199, 219, .3);
+}
+
+/* ---- nav ------------------------------------------------------------------ */
+
+.arc__nav {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 16px 20px;
+  margin: 22px 0 0;
+  border: 1px solid var(--edge-hot);
+  background: rgba(6, 8, 11, .74);
+  backdrop-filter: blur(9px);
+  box-shadow: inset 0 0 40px rgba(255, 182, 39, .05);
+}
+
+.arc__brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }
+.arc__brandMark { color: var(--phos); filter: drop-shadow(0 0 6px rgba(255, 182, 39, .8)); }
+.arc__brandText { display: flex; flex-direction: column; gap: 4px; }
+.arc__brandName {
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: .92rem;
+  letter-spacing: .04em;
+  color: var(--paper);
+}
+.arc__brandSub {
+  font-size: .56rem;
+  letter-spacing: .16em;
+  color: var(--steel);
+}
+
+.arc__navLinks { display: flex; gap: 24px; }
+.arc__navLinks a {
+  font-family: var(--pixel);
+  font-size: .64rem;
+  letter-spacing: .04em;
+  color: var(--dim);
+  text-decoration: none;
+}
+.arc__navLinks a:hover { color: var(--phos); text-shadow: 0 0 12px rgba(255, 182, 39, .7); }
+
+.arc__navBtn { padding: 12px 18px; font-size: .62rem; box-shadow: 3px 3px 0 rgba(255, 182, 39, .22); }
+
+/* ---- hero ----------------------------------------------------------------- */
+
+.arc__hero {
+  position: relative;
+  isolation: isolate;
+  padding-bottom: 40px;
+}
+
+.arc__field { position: absolute; inset: 0 0 -140px; z-index: -2; overflow: hidden; }
+.arc__canvas { position: absolute; inset: 0; opacity: .30; }
+
+/* Holds the type legible over a live shader and feathers the tube into the
+   page below, so the hero has no visible seam. */
+.arc__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(62% 52% at 50% 40%,
+      rgba(6, 8, 11, .86) 0%, rgba(6, 8, 11, .7) 44%, rgba(6, 8, 11, .3) 74%, transparent 100%),
+    linear-gradient(180deg, rgba(6, 8, 11, .78) 0%, rgba(6, 8, 11, .3) 20%, rgba(6, 8, 11, .42) 60%, var(--bg) 97%);
+}
+
+.arc__stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+  padding: clamp(64px, 12vh, 120px) 0 8px;
+  text-align: center;
+}
+
+/* Two cards drifting at the edges: one face up, one gone into the muck. The
+   whole product in two objects. */
+.arc__float {
+  position: absolute;
+  top: 24%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: .92;
+}
+.arc__float--l { left: 5%; transform: rotate(-13deg); }
+.arc__float--r { right: 5%; top: 42%; transform: rotate(11deg); }
+
+.arc__title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: clamp(2.9rem, 9.4vw, 8.2rem);
+  line-height: 1.06;
+  letter-spacing: .01em;
+  margin: 0;
+}
+.arc__t1 {
+  color: var(--paper);
+  text-shadow:
+    0 0 7px rgba(255, 182, 39, .5),
+    0 0 30px rgba(255, 182, 39, .32),
+    0 0 72px rgba(255, 182, 39, .16);
+}
+.arc__t2 {
+  color: var(--phos);
+  text-shadow:
+    0 0 9px rgba(255, 182, 39, .85),
+    0 0 36px rgba(255, 182, 39, .48),
+    0 0 90px rgba(255, 182, 39, .24);
+}
+
+.arc__tag {
+  font-family: var(--pixel);
+  font-size: clamp(.6rem, 1.5vw, .88rem);
+  letter-spacing: .1em;
+  color: var(--steel);
+  text-shadow: 0 0 16px rgba(134, 199, 219, .5);
+}
+
+.arc__pitch {
+  font-size: .82rem;
+  line-height: 1.8;
+  color: #B3BFCA;
+  max-width: 54ch;
+  margin: -6px 0 0;
+  text-shadow: 0 1px 10px rgba(6, 8, 11, .95), 0 0 24px rgba(6, 8, 11, .8);
+}
+
+.arc__ctas { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; padding-top: 6px; }
+
+@media (max-width: 900px) {
+  .arc { --gutter: 18px; }
+  .arc__float { display: none; }
+  .arc__nav { flex-wrap: wrap; gap: 14px; }
+  .arc__navLinks { order: 3; width: 100%; justify-content: center; }
+  .arc__navBtn { order: 4; width: 100%; }
+}
