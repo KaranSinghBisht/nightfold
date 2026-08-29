@@ -11,6 +11,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
 import { compileCage } from './compile.mjs';
 import { chipsPerToken, weiForChips, unitsForChips } from '../pricing.mjs';
+import { watcherAddresses, signCredit } from './watchers.mjs';
 
 const RPC = process.env.RPC_URL ?? 'http://127.0.0.1:8545';
 
@@ -47,6 +48,10 @@ const ZERO = '0x0000000000000000000000000000000000000000';
 async function deployCage(rate) {
   const hash = await wallet('deployer').deployContract({ abi, bytecode, args: [acct.relayer.address, rate, CREDIT_CAP, ZERO] });
   const { contractAddress } = await wait(hash);
+  // Two of three watchers must sign anything arriving from another cage.
+  await wait(await wallet('deployer').writeContract({
+    address: contractAddress, abi, functionName: 'setWatchers', args: [watcherAddresses, 2n],
+  }));
   // seed the house float so this cage can pay out chips bought elsewhere
   await wait(await wallet('deployer').writeContract({
     address: contractAddress, abi, functionName: 'fund', value: parseEther('10'),
@@ -74,8 +79,8 @@ const bobDep = keccak256(toHex('nightfold:dep:bob'));
 const aliceWei = weiForChips('ETH', 1000);
 const bobWei = weiForChips('SOL', 1000);
 
-await wait(await call(baseCage, 'alice', 'buyIn', [aliceDep], aliceWei));
-await wait(await call(solCage, 'bob', 'buyIn', [bobDep], bobWei));
+await wait(await call(baseCage, 'alice', 'buyIn', [aliceDep, 0n], aliceWei));
+await wait(await call(solCage, 'bob', 'buyIn', [bobDep, 0n], bobWei));
 
 const aliceChips = await read(baseCage, 'chipsFor', [aliceWei]);
 const bobChips = await read(solCage, 'chipsFor', [bobWei]);
@@ -95,30 +100,63 @@ check('chip supply is tracked', (await read(baseCage, 'totalChips', [])) === 100
 // ---- the cross-chain moment ------------------------------------------------
 // Bob won the hand. He bought in with SOL; he cashes out in ETH.
 //
-// The relayer CREDITS his winnings on the Base cage, naming the Solana deposit
-// they came from. It cannot pay him — only Bob can burn his own chips.
+// Leaving a cage is a BURN that issues a receipt; arriving requires that
+// receipt, signed by watchers. The relayer carries it and nothing else — it
+// cannot author one, and RA-005's double-issue is impossible because the chips
+// stopped existing on the source before they existed here.
 
-const won = 2000n; // his 1000 plus Alice's
-await wait(await call(baseCage, 'relayer', 'creditRemote',
-  [acct.bob.address, won, 900n, bobDep]));
-check('winnings credited on base, sourced from solana',
-      (await read(baseCage, 'chips', [acct.bob.address])) === won);
+const moved = 1000n; // exactly what he burns; a cage cannot mint on the way in
+
+const burnTx = await wait(await call(solCage, 'bob', 'burnForRemote', [moved, 31337n, baseCage]));
+check('leaving a cage burns the chips there',
+      (await read(solCage, 'chips', [acct.bob.address])) === 0n,
+      'no balance left behind on the source');
+
+const rc = {
+  srcChainId: 31337n,
+  srcCage: solCage,
+  dstChainId: 31337n,
+  dstCage: baseCage,
+  player: acct.bob.address,
+  chipAmount: moved,
+  nonce: 1n,
+};
+const sigs = await signCredit(rc, 2);
+await wait(await wallet('relayer').writeContract({
+  address: baseCage, abi, functionName: 'creditRemote', args: [rc, sigs],
+}));
+check('credited on base against a signed receipt',
+      (await read(baseCage, 'chips', [acct.bob.address])) === moved);
+check('chips exist in exactly one cage at a time',
+      (await read(solCage, 'chips', [acct.bob.address])) === 0n &&
+      (await read(baseCage, 'chips', [acct.bob.address])) === moved,
+      'burned on solana before they existed on base');
+check('a receipt cannot be replayed',
+      await reverts(() => wallet('relayer').writeContract({
+        address: baseCage, abi, functionName: 'creditRemote', args: [rc, sigs],
+      })));
+check('a receipt nobody issued is refused',
+      await reverts(async () => wallet('relayer').writeContract({
+        address: baseCage, abi, functionName: 'creditRemote',
+        args: [{ ...rc, nonce: 2n }, await signCredit({ ...rc, nonce: 2n }, 3)],
+      })),
+      'a same-chain source is read, not taken on trust');
 
 const before = await pub.getBalance({ address: acct.bob.address });
-await wait(await call(baseCage, 'bob', 'cashOut', [won]));
+await wait(await call(baseCage, 'bob', 'cashOut', [moved]));
 await wait(await call(baseCage, 'bob', 'withdraw', []));
 const after = await pub.getBalance({ address: acct.bob.address });
 
-const expected = await read(baseCage, 'tokensFor', [won]);
+const expected = await read(baseCage, 'tokensFor', [moved]);
 check('bob cashes out on a chain he never deposited to',
       after > before,
       `bought in with SOL, left with ~${formatEther(expected)} ETH`);
-// The cage floors on the way out, so a 2,000 chip exit is worth at most what
-// 2,000 chips cost and at least one chip less. It must never pay out more.
-const fair = weiForChips('ETH', Number(won));
+// The cage floors on the way out, so an exit is worth at most what those chips
+// cost and at least one chip less. It must never pay out more.
+const fair = weiForChips('ETH', Number(moved));
 check('the rate is the published one',
       expected <= fair && fair - expected <= 10n ** 18n / BASE_RATE,
-      `${formatEther(expected)} ETH for ${won} chips`);
+      `${formatEther(expected)} ETH for ${moved} chips`);
 check('chips are burned on cash-out', (await read(baseCage, 'chips', [acct.bob.address])) === 0n);
 
 // ---- the cage's guarantees -------------------------------------------------
@@ -126,18 +164,24 @@ check('chips are burned on cash-out', (await read(baseCage, 'chips', [acct.bob.a
 check('a stranger holding no chips cannot cash out',
       await reverts(() => call(baseCage, 'mallory', 'cashOut', [1000n])));
 check('the relayer cannot move funds at all',
-      await reverts(() => call(baseCage, 'relayer', 'cashOut', [won])),
+      await reverts(() => call(baseCage, 'relayer', 'cashOut', [moved])),
       'cashOut burns the CALLER\'s chips');
-check('a source deposit cannot be credited twice',
-      await reverts(() => call(baseCage, 'relayer', 'creditRemote', [acct.bob.address, won, 900n, bobDep])));
+check('the relayer cannot credit itself',
+      await reverts(async () => {
+        const self = { ...rc, player: acct.relayer.address, nonce: 3n };
+        return wallet('relayer').writeContract({
+          address: baseCage, abi, functionName: 'creditRemote', args: [self, await signCredit(self, 2)],
+        });
+      }),
+      'even with a full quorum behind it');
 check('a deposit id cannot be reused',
-      await reverts(() => call(baseCage, 'alice', 'buyIn', [aliceDep], parseEther('0.01'))));
+      await reverts(() => call(baseCage, 'alice', 'buyIn', [aliceDep, 0n], parseEther('0.01'))));
 check('a credited deposit cannot be reclaimed',
       await reverts(() => call(baseCage, 'alice', 'reclaim', [aliceDep])));
 
 // an un-credited deposit is recoverable once the relayer has clearly stalled
 const stuck = keccak256(toHex('nightfold:dep:stuck'));
-await wait(await call(baseCage, 'alice', 'buyIn', [stuck], parseEther('0.02')));
+await wait(await call(baseCage, 'alice', 'buyIn', [stuck, 0n], parseEther('0.02')));
 check('cannot reclaim before the window', await reverts(() => call(baseCage, 'alice', 'reclaim', [stuck])));
 
 for (const [method, params] of [['evm_increaseTime', [7201]], ['evm_mine', []]]) {

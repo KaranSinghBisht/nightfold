@@ -18,6 +18,7 @@ import { createWalletClient, createPublicClient, http, parseEther, keccak256, to
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
 import { compileCage } from './compile.mjs';
+import { watcherAddresses, signCredit } from './watchers.mjs';
 
 const RPC = process.env.RPC_URL ?? 'http://127.0.0.1:8545';
 
@@ -63,22 +64,41 @@ const hash = await wallet('deployer').deployContract({
   abi, bytecode, args: [acct.relayer.address, 20_000n, CREDIT_CAP, ZERO],
 });
 const { contractAddress: cage } = await wait(hash);
+// These six sources are genuinely on other chains, so their burns cannot be
+// read from here — this is exactly the case the watcher quorum exists for.
+await wait(await wallet('deployer').writeContract({
+  address: cage, abi, functionName: 'setWatchers', args: [watcherAddresses, 2n],
+}));
 await wait(await wallet('deployer').writeContract({ address: cage, abi, functionName: 'fund', value: parseEther('10') }));
 
 const read = (fn, args) => pub.readContract({ address: cage, abi, functionName: fn, args });
-const credit = (player, chips, chainId, depId) =>
-  wallet('relayer').writeContract({
-    address: cage, abi, functionName: 'creditRemote', args: [player, chips, chainId, depId],
+const receipt = (player, chips, chainId, nonce) => ({
+  srcChainId: chainId,
+  srcCage: acct.deployer.address, // stands in for the cage on that chain
+  dstChainId: 31337n,
+  dstCage: cage,
+  player,
+  chipAmount: chips,
+  nonce,
+});
+
+const credit = async (player, chips, chainId, nonce) => {
+  const rc = receipt(player, chips, chainId, nonce);
+  return wallet('relayer').writeContract({
+    address: cage, abi, functionName: 'creditRemote', args: [rc, await signCredit(rc, 2)],
   });
+};
 
 console.log(`cage ${cage.slice(0, 12)}…  relayer ${acct.relayer.address.slice(0, 10)}…\n`);
 console.log('┌──────────────────────────────────────────────────────────────┐');
 
 // ---- one deposit per chain, all crediting the same chip ledger -------------
 
-// Deliberately the SAME deposit id on every chain: if the cage keyed on the id
-// alone, the second chain would be rejected as a replay. It keys on the pair.
-const SHARED_DEP = keccak256(toHex('nightfold:deposit:1'));
+// Deliberately the SAME nonce on every chain: if the cage keyed on the nonce
+// alone, the second chain would be rejected as a replay. It keys on the pair,
+// and the signed digest binds the source chain, so the six are distinct
+// receipts rather than one reused six times.
+const SHARED_DEP = 1n;
 
 let expected = 0n;
 for (const c of CHAINS) {
@@ -107,7 +127,7 @@ for (const c of CHAINS) {
 check('a fresh deposit id on a used chain still credits',
   await (async () => {
     const before = await read('chips', [acct.alice.address]);
-    await wait(await credit(acct.alice.address, 5n, CHAINS[2].id, keccak256(toHex('nightfold:deposit:2'))));
+    await wait(await credit(acct.alice.address, 5n, CHAINS[2].id, 2n));
     return (await read('chips', [acct.alice.address])) === before + 5n;
   })());
 

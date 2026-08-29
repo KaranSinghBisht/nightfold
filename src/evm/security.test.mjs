@@ -9,6 +9,7 @@ import { createWalletClient, createPublicClient, http, parseEther, formatEther, 
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
 import { compileContract } from './compile.mjs';
+import { watcherAddresses, signCredit } from './watchers.mjs';
 
 const RPC = process.env.RPC_URL ?? 'http://127.0.0.1:8545';
 
@@ -55,6 +56,9 @@ console.log('\nNF-001 — relayer drained a funded cage with no deposit\n');
   // No oracle: this suite is about the relayer's authority, not pricing.
   const addr = await deploy(cage, [acct.relayer.address, RATE, CAP, '0x0000000000000000000000000000000000000000']);
   await wait(await wallet('deployer').writeContract({
+    address: addr, abi: cage.abi, functionName: 'setWatchers', args: [watcherAddresses, 2n],
+  }));
+  await wait(await wallet('deployer').writeContract({
     address: addr, abi: cage.abi, functionName: 'fund', value: parseEther('1'),
   }));
 
@@ -73,20 +77,37 @@ console.log('\nNF-001 — relayer drained a funded cage with no deposit\n');
   check('relayer holds no chips', (await read('chips', [acct.relayer.address])) === 0n);
   check('cage balance untouched', (await pub.getBalance({ address: addr })) === parseEther('1'));
 
-  // Nor can it credit itself without a source deposit... it can credit, but
-  // every credit is attributable and capped.
-  await wait(await call('relayer', 'creditRemote', [acct.relayer.address, 1000n, 999n, keccak256(toHex('src:1'))]));
-  check('a credit is recorded with its provenance', (await read('chips', [acct.relayer.address])) === 1000n);
-  check('the same source deposit cannot be credited twice',
-        await reverts(() => call('relayer', 'creditRemote', [acct.relayer.address, 1000n, 999n, keccak256(toHex('src:1'))])),
+  // The re-audit's RA-001 showed the old version of this test stopped one call
+  // short of the money: the relayer credited itself, the test admired the
+  // event, and nobody cashed out. Credit now needs a receipt the relayer
+  // cannot author, and it may not name itself at all.
+  const rc = {
+    srcChainId: 999n, srcCage: acct.mallory.address, dstChainId: 31337n, dstCage: addr,
+    player: acct.relayer.address, chipAmount: 1000n, nonce: 1n,
+  };
+  check('relayer cannot credit with no signatures',
+        await reverts(() => call('relayer', 'creditRemote', [rc, []])));
+  check('relayer cannot credit itself even with a full quorum',
+        await reverts(async () => call('relayer', 'creditRemote', [rc, await signCredit(rc, 3)])),
+        'a relayer that can pay itself can drain the cage');
+
+  const toMallory = { ...rc, player: acct.mallory.address };
+  await wait(await call('relayer', 'creditRemote', [toMallory, await signCredit(toMallory, 2)]));
+  check('a quorum-signed credit is recorded with its provenance',
+        (await read('chips', [acct.mallory.address])) === 1000n);
+  check('the same receipt cannot be credited twice',
+        await reverts(async () => call('relayer', 'creditRemote', [toMallory, await signCredit(toMallory, 2)])),
         'global replay protection');
-  check('credits are capped per epoch',
-        await reverts(() => call('relayer', 'creditRemote', [acct.relayer.address, CAP + 1n, 999n, keccak256(toHex('src:2'))])),
-        `cap ${CAP} chips/epoch bounds a key compromise`);
+  check('a credit that outruns reserves is refused',
+        await reverts(async () => {
+          const huge = { ...toMallory, chipAmount: CAP, nonce: 9n };
+          return call('relayer', 'creditRemote', [huge, await signCredit(huge, 2)]);
+        }),
+        'solvency, not just an epoch cap');
 
   // Honest flow still works, and cashing out is pull-based.
   const dep = keccak256(toHex('dep:alice'));
-  await wait(await call('alice', 'buyIn', [dep], parseEther('0.05')));
+  await wait(await call('alice', 'buyIn', [dep, 0n], parseEther('0.05')));
   await wait(await call('relayer', 'creditLocal', [dep]));
   check('a local deposit credits the depositor', (await read('chips', [acct.alice.address])) === 1000n);
 

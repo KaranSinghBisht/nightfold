@@ -20,7 +20,7 @@ const KEYS = {
   deployer: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
   alice:    '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
   relayer:  '0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6',
-  oracle:   '0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba',
+  oracle:   '0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97',
 };
 const acct = Object.fromEntries(Object.entries(KEYS).map(([k, v]) => [k, privateKeyToAccount(v)]));
 const pub = createPublicClient({ chain: foundry, transport: http(RPC) });
@@ -79,7 +79,7 @@ const solCage = await deploy(chipsPerToken('SOL'));
 const ethWei = weiForChips('ETH', 1000);
 const ethIn = Number(ethWei) / 1e18;
 const dep = keccak256(toHex('nightfold:arb:1'));
-await wait(await wallet('alice').writeContract({ address: ethCage, abi, functionName: 'buyIn', args: [dep], value: ethWei }));
+await wait(await wallet('alice').writeContract({ address: ethCage, abi, functionName: 'buyIn', args: [dep, 0n], value: ethWei }));
 await wait(await wallet('relayer').writeContract({ address: ethCage, abi, functionName: 'creditLocal', args: [dep] }));
 
 const bought = await pub.readContract({ address: ethCage, abi, functionName: 'chips', args: [acct.alice.address] });
@@ -108,8 +108,16 @@ check('the old hand-picked rates really were a drain',
 // ---- an oracle-priced cage -------------------------------------------------
 
 const live = await deploy(chipsPerToken('ETH'), acct.oracle.address);
-const post = (r, who = 'oracle') =>
-  wallet(who).writeContract({ address: live, abi, functionName: 'postRate', args: [r] });
+
+/** Posts need MIN_POST_INTERVAL between them now, so walk the clock first. */
+const tick = async (seconds = 600) => {
+  await pub.request({ method: 'evm_increaseTime', params: [`0x${seconds.toString(16)}`] });
+  await pub.request({ method: 'evm_mine', params: [] });
+};
+const post = async (r, who = 'oracle') => {
+  await tick();
+  return wallet(who).writeContract({ address: live, abi, functionName: 'postRate', args: [r] });
+};
 
 const launch = chipsPerToken('ETH');
 check('a fresh oracle cage prices at its launch rate',
@@ -125,9 +133,15 @@ check('nobody else can post a rate', await reverts(() => post(nudge, 'alice')));
 check('a rate cannot jump more than 20% in one post', await reverts(() => post(launch * 2n)));
 check('a zero rate is refused', await reverts(() => post(0n)));
 
+check('two posts in the same block are refused',
+  await reverts(async () => {
+    await wallet('oracle').writeContract({ address: live, abi, functionName: 'postRate', args: [nudge + 1n] });
+    return wallet('oracle').writeContract({ address: live, abi, functionName: 'postRate', args: [nudge + 2n] });
+  }),
+  'RA-004: a per-call bound is no bound without a clock');
+
 // Walk time past MAX_PRICE_AGE and the cage stops minting chips.
-await pub.request({ method: 'evm_increaseTime', params: ['0x1C20'] }); // 7200s
-await pub.request({ method: 'evm_mine', params: [] });
+await tick(7200);
 
 check('a stale price cannot mint chips',
   await reverts(() => pub.readContract({ address: live, abi, functionName: 'chipsFor', args: [parseEther('1')] })));
