@@ -128,5 +128,47 @@ console.log('\ndealing — committed, verifiable, seeded by both players\n');
   check('first card is roughly uniform over 5200 deals', max < 220 && min > 40, `min=${min} max=${max}`);
 }
 
+{
+  // Unequal stacks — reachable the moment a player can choose their buy-in.
+  //
+  // RA-008: an uncapped shove from the big stack left both sides at zero with
+  // the commitments still unequal, so the betting round never closed and the
+  // hand looped on preflop forever. Every one of these must TERMINATE, and no
+  // hand may create or destroy chips.
+  const ratios = [[2500, 200], [200, 2500], [1000, 37], [37, 1000], [500, 500], [3, 900], [900, 3]];
+  let stuck = 0;
+  let leaked = 0;
+
+  for (const [a, b] of ratios) {
+    for (const button of [0, 1]) {
+      let h = newHand({ stackA: a, stackB: b, button });
+      let steps = 0;
+      while (!h.done && steps++ < 200) {
+        const legal = legalActions(h);
+        if (legal.length === 0) break;
+        // Always take the most aggressive line available — that is the one
+        // that used to wedge.
+        const shove = legal.find((l) => l.type === 'raise' || l.type === 'bet');
+        h = act(h, shove ? { type: shove.type, amount: shove.max } : legal.find((l) => l.type === 'call') ?? legal[0]);
+      }
+      if (!h.done) { stuck++; continue; }
+      const paid = payout(h, h.folded !== null ? null : 0);
+      if (paid.stacks[0] + paid.stacks[1] !== a + b) leaked++;
+    }
+  }
+
+  check('every unequal-stack all-in terminates', stuck === 0, `${stuck} stuck of ${ratios.length * 2}`);
+  check('no unequal-stack hand creates or destroys chips', leaked === 0, `${leaked} leaked`);
+
+  // The specific shape from the report, asserted exactly.
+  let h = newHand({ stackA: 2500, stackB: 200, button: 0 });
+  const shove = legalActions(h).find((l) => l.type === 'raise');
+  check('a shove is capped at the opponent effective stack', shove.max === 199, `max=${shove.max}`);
+  h = act(h, { type: 'raise', amount: shove.max });
+  h = act(h, { type: 'call' });
+  check('the short stack calling all in ends the hand', h.done === true, `street=${h.street}`);
+  check('chips nobody could match go back', h.stacks[0] === 2300, `${h.stacks[0]}`);
+}
+
 console.log(failures === 0 ? '\nbetting and dealing: all checks passed' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

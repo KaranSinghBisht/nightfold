@@ -74,13 +74,19 @@ export function legalActions(h) {
 
   // A raise needs chips beyond the call, and at least a min-raise unless it
   // puts the player all in.
-  const maxExtra = h.stacks[me] - Math.min(toCall, h.stacks[me]);
-  if (maxExtra > 0) {
-    const min = Math.min(toCall + h.lastRaise, h.stacks[me]);
+  //
+  // The cap is the EFFECTIVE stack, not this player's stack: heads up you can
+  // never win more than the opponent is able to put in, so betting past that
+  // just parks chips nobody can match. Uncapped, a 2,500 stack shoving into a
+  // 200 stack left both sides at zero with the commitments still unequal and
+  // the hand unable to advance.
+  const effective = Math.min(h.stacks[me], h.stacks[them] + h.committed[them] - h.committed[me]);
+  if (effective > Math.min(toCall, h.stacks[me])) {
+    const min = Math.min(toCall + h.lastRaise, effective);
     acts.push({
       type: toCall > 0 ? 'raise' : 'bet',
       min,
-      max: h.stacks[me],
+      max: effective,
     });
   }
   return acts;
@@ -124,8 +130,11 @@ export function act(h, action) {
     case 'raise': {
       const total = action.amount;
       if (total === undefined) throw new Error('bet/raise needs an amount');
-      if (total > s.stacks[me]) throw new Error('not enough chips');
-      const min = Math.min(toCall + s.lastRaise, s.stacks[me]);
+      // Same effective-stack cap legalActions offers, so the two can never
+      // disagree about what is legal.
+      const effective = Math.min(s.stacks[me], s.stacks[them] + s.committed[them] - s.committed[me]);
+      if (total > effective) throw new Error('not enough chips');
+      const min = Math.min(toCall + s.lastRaise, effective);
       if (total < min) throw new Error(`min ${action.type} is ${min}`);
 
       s.stacks[me] -= total;
@@ -144,12 +153,34 @@ export function act(h, action) {
   s.acted.add(me);
   if (s.stacks[me] === 0) s.allIn = true;
 
+  returnUnmatched(s);
+
   const matched = s.committed[0] === s.committed[1];
   const bothActed = s.acted.has(0) && s.acted.has(1);
 
   if (matched && bothActed) return nextStreet(s);
   s.toAct = them;
   return s;
+}
+
+/**
+ * Give back a bet nobody could cover.
+ *
+ * If the short stack is all in for less, the excess above what they matched was
+ * never at risk and cannot be won. Returning it is what lets the hand proceed:
+ * without it the commitments stay unequal forever, both stacks sit at zero, and
+ * the betting round never closes.
+ */
+function returnUnmatched(s) {
+  if (s.committed[0] === s.committed[1]) return;
+  const over = s.committed[0] > s.committed[1] ? 0 : 1;
+  const under = other(over);
+  if (s.stacks[under] !== 0) return; // they can still call; nothing to give back
+
+  const excess = s.committed[over] - s.committed[under];
+  s.committed[over] -= excess;
+  s.stacks[over] += excess;
+  s.log.push(`seat ${over} takes back ${excess} nobody could match`);
 }
 
 /** Move committed chips into the pot and clear the street. */
