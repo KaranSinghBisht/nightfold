@@ -15,12 +15,13 @@ export const witnesses = {
   seatSecret: ({ privateState }) => [privateState, privateState.secret],
   holeCards: ({ privateState }) => [privateState, privateState.hole],
   holeSalt: ({ privateState }) => [privateState, privateState.salt],
+  boardSalt: ({ privateState }) => [privateState, privateState.boardSalt],
   claimedHand: ({ privateState }) => [privateState, privateState.claimed],
   handPick: ({ privateState }) => [privateState, privateState.pick],
 };
 
 export const emptyPS = () => ({
-  secret: randomBytes(32), hole: [], salt: randomBytes(32), claimed: [], pick: [],
+  secret: randomBytes(32), hole: [], salt: randomBytes(32), boardSalt: randomBytes(32), claimed: [], pick: [],
 });
 
 export function newTable(Contract) {
@@ -54,19 +55,29 @@ export function bestFive(hole, board, handValue) {
 
 /** Open a hand with dealer commitments; returns the ids and both seat states. */
 export function dealHand(t, pureCircuits, { board, hole0, hole1 }) {
-  const handId = randomBytes(32);
-  const s0 = { ...emptyPS(), hole: hole0, salt: randomBytes(32) };
-  const s1 = { ...emptyPS(), hole: hole1, salt: randomBytes(32) };
+  // The board commitment is salted now (RA-007), and every seat needs the same
+  // salt to reopen it, so it lives on the hand rather than on a seat.
+  const boardSalt = randomBytes(32);
+  const s0 = { ...emptyPS(), hole: hole0, salt: randomBytes(32), boardSalt };
+  const s1 = { ...emptyPS(), hole: hole1, salt: randomBytes(32), boardSalt };
+
+  const deckCommit = randomBytes(32);
+  const boardCommit = pureCircuits.boardCommitment(board, boardSalt);
+  const hole0Commit = pureCircuits.holeCommitment(hole0, s0.salt);
+  const hole1Commit = pureCircuits.holeCommitment(hole1, s1.salt);
+  const seat0Key = pureCircuits.seatAuthKey(s0.secret);
+  const seat1Key = pureCircuits.seatAuthKey(s1.secret);
+
+  // RA-006: the id is derived from the setup, so it cannot be claimed with
+  // different content.
+  const handId = pureCircuits.handIdFor(
+    deckCommit, boardCommit, hole0Commit, hole1Commit, seat0Key, seat1Key,
+  );
 
   call(t, 'openHand', emptyPS(), handId,
-    randomBytes(32),
-    pureCircuits.boardCommitment(board),
-    pureCircuits.holeCommitment(hole0, s0.salt),
-    pureCircuits.holeCommitment(hole1, s1.salt),
-    pureCircuits.seatAuthKey(s0.secret),
-    pureCircuits.seatAuthKey(s1.secret));
+    deckCommit, boardCommit, hole0Commit, hole1Commit, seat0Key, seat1Key);
 
-  return { handId, board, seats: [s0, s1] };
+  return { handId, board, boardSalt, seats: [s0, s1] };
 }
 
 /** Stage a seat\'s best claim for a showdown call. */

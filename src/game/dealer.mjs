@@ -53,6 +53,14 @@ const sameBytes = (a, b) =>
 export const cardName = (id) => RANKS[id >> 2] + SUITS[id & 3];
 
 /** A player's pre-deal commitment to their seed. */
+/**
+ * The dealer's half of the commit-reveal. Published BEFORE either player
+ * reveals a seed, so the dealer cannot pick a nonce that suits the deal.
+ */
+export function commitNonce(nonce = randomBytes(32)) {
+  return { nonce, commitment: sha('nf:noncecommit:', nonce) };
+}
+
 export function commitSeed(seed = randomBytes(32)) {
   return { seed, commitment: sha('nf:seed:', seed) };
 }
@@ -94,6 +102,15 @@ export function deal(seedA, seedB, commitments, nonce = randomBytes(32)) {
   // Neither player may change their seed after seeing the other's.
   if (!sameBytes(sha('nf:seed:', seedA), commitments.a)) throw new Error('seat 0 seed does not match its commitment');
   if (!sameBytes(sha('nf:seed:', seedB), commitments.b)) throw new Error('seat 1 seed does not match its commitment');
+
+  // RA-003: and neither may the DEALER. It used to supply its nonce after
+  // seeing both seeds, which makes it the last mover with a free choice — an
+  // audit ground out pocket aces for a chosen seat in 963 tries. When a nonce
+  // commitment is published up front the dealer is bound before it can see
+  // anything worth grinding against, so nobody moves last.
+  if (commitments.n !== undefined && !sameBytes(sha('nf:noncecommit:', nonce), commitments.n)) {
+    throw new Error('dealer nonce does not match its commitment');
+  }
 
   const deckSeed = sha('nf:deck:', seedA, seedB, nonce);
   const deck = shuffle(deckSeed);

@@ -65,6 +65,9 @@ witness seatSecret(): Bytes<32>;
 // dealer's commitment to them.
 witness holeCards(): Vector<2, Card>;
 witness holeSalt(): Bytes<32>;
+
+/** Hides the board commitment. See boardCommitment for why it must exist. */
+witness boardSalt(): Bytes<32>;
 // The five cards being claimed, and where each sits among the seven.
 witness claimedHand(): Vector<5, Card>;
 witness handPick(): Vector<5, Uint<8>>;
@@ -92,10 +95,19 @@ export circuit holeCommitment(cards: Vector<2, Card>, salt: Bytes<32>): Bytes<32
   ]);
 }
 
-/** Unsalted commitment to the public board — anyone may recompute this. */
-export circuit boardCommitment(board: Vector<5, Card>): Bytes<32> {
-  return persistentHash<Vector<6, Bytes<32>>>([
+/**
+ * Commitment to the board.
+ *
+ * RA-007: this used to be unsalted, and a five-card ordered board has only
+ * 52*51*50*49*48 = 311,875,200 preimages. One lookup table recovers the flop,
+ * turn and river before betting finishes — a 32-byte digest cannot restore
+ * entropy the input never had. The salt is what makes the commitment hiding;
+ * it is revealed with the board at showdown.
+ */
+export circuit boardCommitment(board: Vector<5, Card>, salt: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<7, Bytes<32>>>([
     pad(32, "nf:board:"),
+    salt,
     persistentHash<Uint<8>>(board[0].id),
     persistentHash<Uint<8>>(board[1].id),
     persistentHash<Uint<8>>(board[2].id),
@@ -152,7 +164,7 @@ circuit verifiedClaim(
     checkCard(board[i]);
   }
   // The board must be the one this hand committed to.
-  assert(boardCommitment(board) == setup.boardCommit, "board does not match the hand");
+  assert(boardCommitment(board, boardSalt()) == setup.boardCommit, "board does not match the hand");
 
   // The hole cards must open the dealer's commitment for this seat.
   const cards = holeCards();
@@ -166,6 +178,18 @@ circuit verifiedClaim(
     cards[0], cards[1],
     board[0], board[1], board[2], board[3], board[4]
   ];
+
+  // RA-003: distinct POSITIONS are not distinct CARDS. Without this the
+  // contract accepted a hand holding seven copies of the ace of spades and
+  // ranked it happily. Twenty-one comparisons say the seven cards this claim
+  // is drawn from are seven different cards.
+  for (const i of 0..7) {
+    for (const k of 0..7) {
+      if (i < k) {
+        assert(src[i].id != src[k].id, "the same card cannot appear twice");
+      }
+    }
+  }
 
   // Each claimed card must sit at a DISTINCT position among the seven.
   const pick = handPick();
@@ -185,6 +209,21 @@ circuit verifiedClaim(
   return claimed;
 }
 
+/** The hand id IS its setup, so the id cannot be claimed with other content. */
+export circuit handIdFor(
+  deckCommit: Bytes<32>,
+  boardCommit: Bytes<32>,
+  hole0Commit: Bytes<32>,
+  hole1Commit: Bytes<32>,
+  seat0Key: Bytes<32>,
+  seat1Key: Bytes<32>
+): Bytes<32> {
+  return persistentHash<Vector<7, Bytes<32>>>([
+    pad(32, "nf:handid:"),
+    deckCommit, boardCommit, hole0Commit, hole1Commit, seat0Key, seat1Key
+  ]);
+}
+
 // ---- circuits --------------------------------------------------------------
 
 /**
@@ -200,6 +239,16 @@ export circuit openHand(
   seat0Key: Bytes<32>,
   seat1Key: Bytes<32>
 ): [] {
+  // RA-006: openHand was unauthenticated, so anyone who learned an intended
+  // hand id could occupy it first with their own seat keys and lock the real
+  // dealer out. Rather than add a dealer role, the id is now DERIVED from the
+  // setup: to claim an id you must supply exactly the setup that hashes to it,
+  // which is the legitimate one. A front-runner can only store what the dealer
+  // was going to store anyway.
+  assert(disclose(handId) == handIdFor(
+    deckCommit, boardCommit, hole0Commit, hole1Commit, seat0Key, seat1Key
+  ), "hand id must bind its own setup");
+
   assert(!hands.member(disclose(handId)), "hand already open");
   assert(disclose(seat0Key) != disclose(seat1Key), "seats must differ");
   assert(disclose(hole0Commit) != disclose(hole1Commit), "seats must hold different cards");

@@ -13,7 +13,7 @@ import { unitsForChips } from '../arcade/chains';
 // @ts-expect-error — plain JS module shared with the test suites
 import { newHand, act as bet, legalActions, payout, endedOnFold } from '@shared/game/betting.mjs';
 // @ts-expect-error — plain JS module shared with the test suites
-import { commitSeed, deal, cardName } from '@shared/game/dealer.mjs';
+import { commitSeed, commitNonce, deal, cardName } from '@shared/game/dealer.mjs';
 
 import type { Card, Chain as ChainId, LedgerEvent, Seat, Phase } from './types';
 
@@ -61,7 +61,10 @@ export function startHand(
 ): Engine {
   const a = commitSeed();
   const b = commitSeed();
-  const d = deal(a.seed, b.seed, { a: a.commitment, b: b.commitment });
+  // The dealer is bound to its nonce before either seed is revealed, so no
+  // party moves last with a free choice (RA-003).
+  const n = commitNonce();
+  const d = deal(a.seed, b.seed, { a: a.commitment, b: b.commitment, n: n.commitment }, n.nonce);
 
   return {
     handId: '0x' + shortHex(d.deckCommitment, 12).replace('…', ''),

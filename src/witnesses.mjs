@@ -24,7 +24,7 @@ export const showHand = (cs) => cs.map(showCard).join(' ');
 
 /** Fresh private state for one player. */
 export function emptyPrivateState() {
-  return { hole: [], salt: randomBytes(32), claimed: [], pick: [] };
+  return { hole: [], salt: randomBytes(32), boardSalt: randomBytes(32), claimed: [], pick: [] };
 }
 
 /**
@@ -45,6 +45,7 @@ export function stage(ps, { hole, salt, claimed, pick }) {
 export const witnesses = {
   holeCards: ({ privateState }) => [privateState, privateState.hole],
   holeSalt: ({ privateState }) => [privateState, privateState.salt],
+  boardSalt: ({ privateState }) => [privateState, privateState.boardSalt],
   claimedHand: ({ privateState }) => [privateState, privateState.claimed],
   handPick: ({ privateState }) => [privateState, privateState.pick],
 };

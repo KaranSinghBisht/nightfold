@@ -28,12 +28,13 @@ const witnesses = {
   seatSecret: ({ privateState }) => [privateState, privateState.secret],
   holeCards: ({ privateState }) => [privateState, privateState.hole],
   holeSalt: ({ privateState }) => [privateState, privateState.salt],
+  boardSalt: ({ privateState }) => [privateState, privateState.boardSalt],
   claimedHand: ({ privateState }) => [privateState, privateState.claimed],
   handPick: ({ privateState }) => [privateState, privateState.pick],
 };
 
 const emptyPS = () => ({
-  secret: randomBytes(32), hole: [], salt: randomBytes(32), claimed: [], pick: [],
+  secret: randomBytes(32), hole: [], salt: randomBytes(32), boardSalt: randomBytes(32), claimed: [], pick: [],
 });
 
 function newTable() {
@@ -66,19 +67,24 @@ function bestFive(hole, board) {
 
 /** Deal a hand the way the dealer does: commit everything before anyone acts. */
 function dealHand(t, { board, hole0, hole1 }) {
-  const handId = randomBytes(32);
-  const s0 = { ...emptyPS(), hole: hole0, salt: randomBytes(32) };
-  const s1 = { ...emptyPS(), hole: hole1, salt: randomBytes(32) };
+  const boardSalt = randomBytes(32);
+  const s0 = { ...emptyPS(), hole: hole0, salt: randomBytes(32), boardSalt };
+  const s1 = { ...emptyPS(), hole: hole1, salt: randomBytes(32), boardSalt };
+
+  const deckCommit = randomBytes(32);
+  const boardCommit = pureCircuits.boardCommitment(board, boardSalt);
+  const hole0Commit = pureCircuits.holeCommitment(hole0, s0.salt);
+  const hole1Commit = pureCircuits.holeCommitment(hole1, s1.salt);
+  const seat0Key = pureCircuits.seatAuthKey(s0.secret);
+  const seat1Key = pureCircuits.seatAuthKey(s1.secret);
+  const handId = pureCircuits.handIdFor(
+    deckCommit, boardCommit, hole0Commit, hole1Commit, seat0Key, seat1Key,
+  );
 
   call(t, 'openHand', emptyPS(), handId,
-    randomBytes(32),                                     // deck commitment
-    pureCircuits.boardCommitment(board),
-    pureCircuits.holeCommitment(hole0, s0.salt),
-    pureCircuits.holeCommitment(hole1, s1.salt),
-    pureCircuits.seatAuthKey(s0.secret),
-    pureCircuits.seatAuthKey(s1.secret));
+    deckCommit, boardCommit, hole0Commit, hole1Commit, seat0Key, seat1Key);
 
-  return { handId, board, seats: [s0, s1] };
+  return { handId, board, boardSalt, seats: [s0, s1] };
 }
 
 const stage = (ps, hole, board) => {
@@ -211,14 +217,40 @@ console.log('\nresolutions are mutually exclusive\n');
 
 // ---- hand setup is immutable -----------------------------------------------
 
+console.log('\nthe deal must be a real deal\n');
+{
+  // RA-003: the contract checked that the five claimed cards sat at distinct
+  // POSITIONS, which is not the same as being distinct CARDS. An auditor
+  // opened and settled a hand whose seven available positions were all the ace
+  // of spades, and it ranked happily.
+  const AS = cards('As')[0];
+  const t2 = newTable();
+  const dupBoard = [AS, AS, AS, AS, AS];
+  const dupHole = [AS, AS];
+  const h2 = dealHand(t2, { board: dupBoard, hole0: dupHole, hole1: cards('Kd Qd') });
+
+  check('seven copies of one card cannot be ranked',
+        rejects(() => call(t2, 'revealHand',
+          stage({ ...h2.seats[0], boardSalt: h2.boardSalt }, dupHole, dupBoard),
+          h2.handId, 0n, dupBoard)),
+        'the same card cannot appear twice');
+}
+
 console.log('\nhand setup is fixed before anyone acts\n');
 {
   const t = newTable();
   const h = dealHand(t, { board: BOARD, hole0: ALICE, hole1: BOB });
   check('a hand id cannot be reopened',
         rejects(() => call(t, 'openHand', emptyPS(), h.handId,
-          randomBytes(32), pureCircuits.boardCommitment(BOARD),
+          randomBytes(32), pureCircuits.boardCommitment(BOARD, h.boardSalt),
           randomBytes(32), randomBytes(32), randomBytes(32), randomBytes(32))));
+  // RA-006: and it cannot be claimed with someone else's content either — the
+  // id IS the setup, so a front-runner has nothing of their own to install.
+  check('a hand id cannot be opened with different content',
+        rejects(() => call(t, 'openHand', emptyPS(), randomBytes(32),
+          randomBytes(32), randomBytes(32),
+          randomBytes(32), randomBytes(32), randomBytes(32), randomBytes(32))),
+        'the id must hash its own setup');
 
   const l = view(t);
   check('the hand records commitments only', l.hands.member(h.handId));

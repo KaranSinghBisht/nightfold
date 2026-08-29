@@ -2,7 +2,7 @@
 // rather than a proof harness.
 
 import { newHand, act, legalActions, payout, endedOnFold } from './betting.mjs';
-import { commitSeed, deal, verifyDeal, shuffle, cardName } from './dealer.mjs';
+import { commitSeed, commitNonce, deal, verifyDeal, shuffle, cardName } from './dealer.mjs';
 import { randomBytes } from 'node:crypto';
 
 let failures = 0;
@@ -92,7 +92,8 @@ console.log('\ndealing — committed, verifiable, seeded by both players\n');
 {
   const a = commitSeed();
   const b = commitSeed();
-  const d = deal(a.seed, b.seed, { a: a.commitment, b: b.commitment });
+  const n = commitNonce();
+  const d = deal(a.seed, b.seed, { a: a.commitment, b: b.commitment, n: n.commitment }, n.nonce);
 
   const all = [...d.hole[0], ...d.hole[1], ...d.board];
   check('nine distinct cards are dealt', new Set(all).size === 9);
@@ -168,6 +169,37 @@ console.log('\ndealing — committed, verifiable, seeded by both players\n');
   h = act(h, { type: 'call' });
   check('the short stack calling all in ends the hand', h.done === true, `street=${h.street}`);
   check('chips nobody could match go back', h.stacks[0] === 2300, `${h.stacks[0]}`);
+}
+
+{
+  // RA-003: the dealer used to choose its nonce AFTER seeing both seeds, which
+  // makes it the last mover with a free choice. An auditor ground out pocket
+  // aces for seat 0 in 963 tries. Here is the same grind, and the fix.
+  const a = commitSeed();
+  const b = commitSeed();
+
+  let found = 0;
+  for (let i = 0; i < 4000; i++) {
+    const d = deal(a.seed, b.seed, { a: a.commitment, b: b.commitment }, randomBytes(32));
+    if (d.hole[0][0] % 13 === 12 && d.hole[0][1] % 13 === 12) { found = i + 1; break; }
+  }
+  check('an uncommitted nonce really is grindable', found > 0,
+        found ? `pocket aces for seat 0 in ${found} tries` : 'not found in 4000');
+
+  // With a published nonce commitment the dealer is bound before it can see
+  // anything worth grinding against: every other nonce is simply rejected.
+  const n = commitNonce();
+  let rejected = 0;
+  for (let i = 0; i < 50; i++) {
+    try {
+      deal(a.seed, b.seed, { a: a.commitment, b: b.commitment, n: n.commitment }, randomBytes(32));
+    } catch { rejected++; }
+  }
+  check('a committed nonce cannot be ground', rejected === 50, `${rejected}/50 alternatives refused`);
+  check('and the committed one still deals', (() => {
+    const d = deal(a.seed, b.seed, { a: a.commitment, b: b.commitment, n: n.commitment }, n.nonce);
+    return d.hole[0].length === 2 && d.board.length === 5;
+  })());
 }
 
 console.log(failures === 0 ? '\nbetting and dealing: all checks passed' : `\n${failures} FAILED`);
