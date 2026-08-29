@@ -1,34 +1,52 @@
 import { useCallback, useEffect, useState } from 'react';
-import { STEPS, LAST_STEP } from './game/script';
+import { startHand, applyAction, resolveShowdown, view, legalActions, type Engine, type Action } from './game/engine';
+import { botAction, botShowdown } from './game/bot';
+import { rankOf } from './game/rank';
 import { PHASE_LABEL } from './game/types';
 import { SeatPanel } from './components/SeatPanel';
 import { PlayingCard } from './components/PlayingCard';
 import { LedgerView } from './components/LedgerView';
 import './layout.css';
 
-/** Deep-link a beat: ?step=6 jumps straight to the showdown. */
-function initialStep(): number {
-  const n = Number(new URLSearchParams(window.location.search).get('step'));
-  return Number.isInteger(n) && n >= 0 && n <= LAST_STEP ? n : 0;
-}
+const YOU = 0 as const;
+
+interface Legal { type: string; amount?: number; min?: number; max?: number }
 
 export default function App() {
-  const [step, setStep] = useState(initialStep);
-  const hand = STEPS[step];
+  const [engine, setEngine] = useState<Engine>(() => startHand());
+  const [thinking, setThinking] = useState(false);
 
-  const next = useCallback(() => setStep((s) => Math.min(s + 1, LAST_STEP)), []);
-  const prev = useCallback(() => setStep((s) => Math.max(s - 1, 0)), []);
+  const { seats, board } = view(engine, YOU);
+  const yourTurn = !engine.betting.done && engine.betting.toAct === YOU;
+  const atShowdown = engine.phase === 'showdown' && engine.shown[YOU] === null;
+  const acts = (yourTurn ? legalActions(engine.betting) : []) as Legal[];
+  const pot = engine.betting.pot + engine.betting.committed[0] + engine.betting.committed[1];
 
-  // Arrow keys drive the demo so nothing has to be clicked on camera.
+  const play = useCallback((a: Action) => setEngine((e) => applyAction(e, a)), []);
+
+  // The bot acts on a short delay so a viewer can follow the hand.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
-      if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
-      if (e.key === 'r') setStep(0);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [next, prev]);
+    if (engine.betting.done || engine.betting.toAct === YOU) return;
+    setThinking(true);
+    const t = setTimeout(() => {
+      setEngine((e) => applyAction(e, botAction(e)));
+      setThinking(false);
+    }, 700);
+    return () => clearTimeout(t);
+  }, [engine]);
+
+  // The opponent decides show-or-muck once you have.
+  useEffect(() => {
+    if (engine.phase !== 'showdown') return;
+    if (engine.shown[YOU] === null || engine.shown[1] !== null) return;
+    const t = setTimeout(() => {
+      setEngine((e) => resolveShowdown(e, 1, botShowdown(e, rankOf), rankOf));
+    }, 800);
+    return () => clearTimeout(t);
+  }, [engine]);
+
+  const showdown = (choice: 'show' | 'muck') =>
+    setEngine((e) => resolveShowdown(e, YOU, choice, rankOf));
 
   return (
     <div className="app">
@@ -38,59 +56,83 @@ export default function App() {
           <p className="app__tag">The loser never shows their cards.</p>
         </div>
         <div className="app__meta">
-          <span className="app__hand mono">hand {hand.handId}</span>
-          <span className="app__phase">{PHASE_LABEL[hand.phase]}</span>
+          <span className="app__hand mono">deck {engine.deckCommitment}</span>
+          <span className="app__phase">{PHASE_LABEL[engine.phase] ?? engine.betting.street}</span>
         </div>
       </header>
 
       <main className="app__main">
         <div className="app__table">
-          <SeatPanel seat={hand.seats[0]} isYou={hand.you === 0} />
+          <SeatPanel seat={seats[0]} isYou />
 
           <section className="felt">
-            <span className="felt__label eyebrow">board · public by the rules of poker</span>
+            <span className="felt__label eyebrow">
+              board · public by the rules of poker
+              {thinking && <span className="felt__thinking"> · Bob is thinking</span>}
+            </span>
             <div className="felt__cards">
-              {hand.board.length === 0
-                ? <span className="felt__empty">no cards yet</span>
-                : hand.board.map((c, i) => (
+              {board.length === 0
+                ? <span className="felt__empty">preflop — no cards yet</span>
+                : board.map((c, i) => (
                     <PlayingCard key={`${c.rank}${c.suit}`} card={c} size="md" delay={i * 70} />
                   ))}
             </div>
             <div className="felt__pot">
               <span className="eyebrow">pot</span>
-              <span className="felt__potvalue mono">{hand.pot} ETH</span>
-              {hand.winner !== undefined && (
+              <span className="felt__potvalue mono">{pot}</span>
+              {engine.winner !== null && (
                 <span className="felt__winner">
-                  → {hand.winner === 2 ? 'split' : hand.seats[hand.winner].name}
+                  → {engine.winner === 2 ? 'split' : seats[engine.winner].name}
                 </span>
               )}
             </div>
           </section>
 
-          <SeatPanel seat={hand.seats[1]} isYou={hand.you === 1} />
+          <SeatPanel seat={seats[1]} isYou={false} />
         </div>
 
-        <LedgerView events={hand.events} />
+        <LedgerView events={engine.events} />
       </main>
 
       <footer className="app__foot">
-        <div className="app__steps">
-          {STEPS.map((_, i) => (
-            <button
-              key={i}
-              className={`app__dot${i === step ? ' app__dot--on' : ''}`}
-              onClick={() => setStep(i)}
-              aria-label={`step ${i + 1}`}
-            />
-          ))}
-        </div>
-        <div className="app__nav">
-          <button className="app__btn" onClick={prev} disabled={step === 0}>back</button>
-          <button className="app__btn app__btn--primary" onClick={next} disabled={step === LAST_STEP}>
-            {step === LAST_STEP ? 'hand complete' : 'next'}
-          </button>
-        </div>
-        <span className="app__hint mono">← → to step · r to reset</span>
+        {atShowdown ? (
+          <div className="app__actions">
+            <span className="app__prompt">Showdown — show, or muck and reveal nothing.</span>
+            <button className="app__btn" onClick={() => showdown('muck')}>muck</button>
+            <button className="app__btn app__btn--primary" onClick={() => showdown('show')}>show</button>
+          </div>
+        ) : yourTurn ? (
+          <div className="app__actions">
+            {acts.map((a) =>
+              a.type === 'bet' || a.type === 'raise' ? (
+                <button
+                  key={a.type}
+                  className="app__btn app__btn--primary"
+                  onClick={() => play({ type: a.type as 'bet' | 'raise', amount: a.min! })}
+                >
+                  {a.type} {a.min}
+                </button>
+              ) : (
+                <button key={a.type} className="app__btn" onClick={() => play({ type: a.type } as Action)}>
+                  {a.type}{a.type === 'call' && a.amount ? ` ${a.amount}` : ''}
+                </button>
+              )
+            )}
+          </div>
+        ) : engine.phase === 'settled' ? (
+          <div className="app__actions">
+            <span className="app__prompt">
+              {engine.shown[0] === 'muck' || engine.shown[1] === 'muck'
+                ? 'A hand went into the muck. It is not on any chain, and never will be.'
+                : 'Hand complete.'}
+            </span>
+            <button className="app__btn app__btn--primary" onClick={() => setEngine(startHand())}>
+              next hand
+            </button>
+          </div>
+        ) : (
+          <span className="app__prompt">waiting for Bob…</span>
+        )}
       </footer>
     </div>
   );

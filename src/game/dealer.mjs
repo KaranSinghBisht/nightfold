@@ -21,16 +21,34 @@
 // Until then this is honest, verifiable-after-the-fact dealing, not a claim of
 // trustlessness.
 
-import { createHash, randomBytes } from 'node:crypto';
+// @noble/hashes is synchronous and isomorphic, so the browser table and the
+// Node test suites run byte-for-byte the same dealer. node:crypto would force
+// the UI onto a separate implementation, which is exactly how a demo and its
+// tests drift apart.
+import { sha256 } from '@noble/hashes/sha2.js';
+
+/** Cryptographically secure random bytes, in Node and the browser alike. */
+export function randomBytes(n) {
+  return globalThis.crypto.getRandomValues(new Uint8Array(n));
+}
 
 const RANKS = '23456789TJQKA';
 const SUITS = 'shdc';
 
+const enc = new TextEncoder();
+
 const sha = (...parts) => {
-  const h = createHash('sha256');
-  for (const p of parts) h.update(typeof p === 'string' ? Buffer.from(p, 'utf8') : p);
-  return h.digest();
+  const bytes = parts.map((p) => (typeof p === 'string' ? enc.encode(p) : Uint8Array.from(p)));
+  const total = bytes.reduce((n, b) => n + b.length, 0);
+  const joined = new Uint8Array(total);
+  let at = 0;
+  for (const b of bytes) { joined.set(b, at); at += b.length; }
+  return sha256(joined);
 };
+
+/** Uint8Array equality — replaces Buffer.equals, which the browser lacks. */
+const sameBytes = (a, b) =>
+  a.length === b.length && a.every((x, i) => x === b[i]);
 
 export const cardName = (id) => RANKS[id >> 2] + SUITS[id & 3];
 
@@ -43,8 +61,10 @@ export function commitSeed(seed = randomBytes(32)) {
 function* prng(seed) {
   let counter = 0;
   for (;;) {
-    const block = sha(seed, Buffer.from([counter++, 0, 0, 0]));
-    for (let i = 0; i + 4 <= block.length; i += 4) yield block.readUInt32BE(i);
+    const block = sha(seed, Uint8Array.from([counter++, 0, 0, 0]));
+    for (let i = 0; i + 4 <= block.length; i += 4) {
+      yield ((block[i] << 24) | (block[i + 1] << 16) | (block[i + 2] << 8) | block[i + 3]) >>> 0;
+    }
   }
 }
 
@@ -72,14 +92,14 @@ export function shuffle(seed) {
  */
 export function deal(seedA, seedB, commitments, nonce = randomBytes(32)) {
   // Neither player may change their seed after seeing the other's.
-  if (!sha('nf:seed:', seedA).equals(commitments.a)) throw new Error('seat 0 seed does not match its commitment');
-  if (!sha('nf:seed:', seedB).equals(commitments.b)) throw new Error('seat 1 seed does not match its commitment');
+  if (!sameBytes(sha('nf:seed:', seedA), commitments.a)) throw new Error('seat 0 seed does not match its commitment');
+  if (!sameBytes(sha('nf:seed:', seedB), commitments.b)) throw new Error('seat 1 seed does not match its commitment');
 
   const deckSeed = sha('nf:deck:', seedA, seedB, nonce);
   const deck = shuffle(deckSeed);
 
   // Published BEFORE any card is delivered. Binds the dealer to this exact deck.
-  const deckCommitment = sha('nf:deckcommit:', Buffer.from(deck), nonce);
+  const deckCommitment = sha('nf:deckcommit:', Uint8Array.from(deck), nonce);
 
   return {
     deckCommitment,
@@ -99,13 +119,13 @@ export function deal(seedA, seedB, commitments, nonce = randomBytes(32)) {
 export function verifyDeal({ deckCommitment, opening }, seedA, seedB) {
   const { deck, nonce } = opening;
   const expectedSeed = sha('nf:deck:', seedA, seedB, nonce);
-  if (!expectedSeed.equals(opening.deckSeed)) return { ok: false, reason: 'deck seed does not match the players\' seeds' };
+  if (!sameBytes(expectedSeed, opening.deckSeed)) return { ok: false, reason: 'deck seed does not match the players\' seeds' };
 
   const expectedDeck = shuffle(opening.deckSeed);
   if (expectedDeck.join() !== deck.join()) return { ok: false, reason: 'deck is not the shuffle of that seed' };
 
-  const expectedCommit = sha('nf:deckcommit:', Buffer.from(deck), nonce);
-  if (!expectedCommit.equals(deckCommitment)) return { ok: false, reason: 'deck does not open the published commitment' };
+  const expectedCommit = sha('nf:deckcommit:', Uint8Array.from(deck), nonce);
+  if (!sameBytes(expectedCommit, deckCommitment)) return { ok: false, reason: 'deck does not open the published commitment' };
 
   return { ok: true };
 }

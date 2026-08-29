@@ -155,3 +155,15 @@
   .app__foot { flex-wrap: wrap; }
   .app__hint { display: none; }
 }
+
+/* ---- action bar ---------------------------------------------------------- */
+
+.app__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; }
+
+.app__prompt {
+  font-size: .88rem;
+  color: var(--ink-dim);
+  margin-right: auto;
+}
+
+.felt__thinking { color: var(--brass); font-style: italic; }
