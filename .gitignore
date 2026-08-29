@@ -18,3 +18,4 @@ midnight-level-db/
 
 # Solidity build output — compiled fresh by src/evm/compile.mjs
 evm/out/
+.vercel
