@@ -10,7 +10,11 @@
 
 import { randomBytes } from 'node:crypto';
 import { deployContract } from '@midnight-ntwrk/midnight-js-contracts';
-import { CompiledContract } from '@midnight-ntwrk/compact-js';
+// MUST come from the protocol package's re-export, not '@midnight-ntwrk/compact-js'
+// directly. compact-js keys its context with a bare Symbol() rather than
+// Symbol.for(), so two copies of the module have different keys and the SDK
+// silently fails to find the contract context.
+import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
 
 import { buildWallet, buildProviders, logger } from './providers.mjs';
 import { LOCAL, ZK_CONFIG_PATH as ZK_ASSETS } from './config.mjs';
