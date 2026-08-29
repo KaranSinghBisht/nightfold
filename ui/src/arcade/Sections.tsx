@@ -242,7 +242,7 @@ export function Lanes({ onPlay }: FootProps) {
             Built for the Midnight Hackathon, August 2026. The README documents what
             is proven, what is simulated, and what the dealer can still see —{' '}
             <a href="https://github.com/KaranSinghBisht/nightfold/blob/main/docs/security.md">docs/security.md</a>{' '}
-            records an external audit and the fix for every finding. Card art by{' '}
+            records three audits, what each one found, and what is still trusted rather than proven. Card art by{' '}
             <a href="https://kenney.nl">Kenney</a>, CC0.
           </p>
         </div>

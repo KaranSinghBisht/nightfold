@@ -97,170 +97,56 @@ whole contract costs less than a JPEG thumbnail to deploy.
 
 ## Security
 
-Two independent audits. The first found ten issues; the second, on 2026-08-29,
-re-tested those and went further, confirming five criticals with executed
-proofs. Both reports are in `.superstack/security-reports/`, including the
-evidence for every finding.
+Three passes: an audit, a re-audit, and an independent verification of the
+remediations. All three reports and their runnable proof-of-concepts are in
+`.superstack/security-reports/`.
 
-**A third pass on 2026-08-29 disproved the claim that every finding was fixed.**
-Independent proof-of-concepts drain the cage twice over, settle a globally
-impossible deal, and break the proof harness. `.superstack/security-reports/`
-carries the report and the runnable evidence.
+The third pass is the one worth reading, because it disproved a claim this
+README made. Every finding was reported as fixed; executed evidence drained the
+cage twice, settled a globally impossible deal, and showed the proof harness
+could not construct its own contract. It also found that one of this repo's
+regression tests passed for the wrong reason — `check:exploits` credited 20,000
+chips against a cage backing 12,175, so it stopped at the solvency ceiling
+without ever reaching the check it named. At exactly 12,175 the cage emptied.
 
-Status of the 18: **5 fixed, 6 partial, 6 open, 1 accepted as out of scope.**
+Everything that pass found is now closed, and every fix has a test that probes
+the boundary rather than stepping over it. `npm run check:nfv` re-runs each
+drain and asserts it is refused *for the stated reason*; caps are checked one
+unit over, at the cap, and one unit under.
 
-Worse than the open findings: one of this repo's own regression tests passed
-for the wrong reason. `check:exploits` credited 20,000 chips against a cage
-backing 12,175, so it hit the solvency ceiling instead of the check it claimed
-to exercise. At exactly 12,175 the relayer credits an accomplice and the cage
-empties. A green suite is not evidence when the test never reaches the code it
-names.
-
-| Finding | Fix |
+| Was | Now |
 |---|---|
-| RA-001 relayer drained a funded cage | remote credit needs a threshold-signed receipt the relayer cannot author, may not name the relayer, and must leave the cage solvent |
-| RA-002 relayer chose any winner | settlement needs signatures from a quorum the relayer is not in; the challenge window has a `challenge()` and `timeout` reaches `Disputed` |
-| RA-003 dealer ground the deck; seven aces accepted | dealer commits its nonce before either seed is revealed; 21 comparisons require the seven source cards to be distinct |
-| RA-004 oracle compounded 20% moves | minimum interval between posts, a rolling-window cap, and a solvency check at the new price |
-| RA-005 one deposit, two cages | leaving burns and issues a receipt; a same-chain destination READS that receipt rather than trusting a signature |
-| RA-006 `openHand` front-running | the hand id is derived from its own setup, so an id cannot be claimed with different content |
-| RA-007 board recoverable by brute force | the board commitment takes a salt |
-| RA-008 unequal-stack all-ins deadlocked | raises cap at the opponent's effective stack; unmatched money goes back |
-| RA-009 both-muck awarded seat 0 by accident | both-muck splits, in the contract and the relayer |
-| RA-011 tests stopped before the exploit paid | `npm run check:exploits` runs each one to withdrawal |
-| RA-012 harness targeted a removed contract | rewritten against `openHand`; CI asserts the harness and artifact agree |
-| RA-014 immutable roles, unvalidated params | two-step admin handover, rotatable relayer/oracle, pause, constructor validation |
-| RA-015 opponent cards readable in devtools | sealed in a module-scoped vault outside React state |
-| RA-016 `npm test` was a dead script | it runs the suite, and CI enforces it |
+| any contract answering `issuedReceipt` was a valid source | same-chain sources must be registered, and registration waits a day |
+| one receipt could mint the entire backed float | a single credit is capped at 20% of unencumbered reserves |
+| pending deposits counted as spare reserves | they are liabilities from `buyIn` until credited or reclaimed |
+| replay keyed on `(chain, nonce)`, so every cage's first transfer collided | keyed on the whole receipt digest |
+| `setOracle` moved the redemption rate unchecked | solvency-checked like any other price move |
+| admin could add its own watchers and drop the threshold to one | changes are delayed; the threshold has a floor of two |
+| a burn to a bad destination destroyed chips forever | reclaimable after six hours, receipt revoked first |
+| both seats could hold the same card | `openHand` proves all nine dealt cards are real and different |
+| the dealer's nonce commitment was optional | mandatory; omitting it is refused |
+| four copies of the witness bundle, two of them wrong | one bundle, and CI constructs the real contract with it |
+| a shown hand rendered as `2s 2s` | shown cards have a public home and are checked against the vault |
+| four components disagreed on how a hand ends | one matrix in `src/game/lifecycle.mjs`, walked entirely by a test |
+| challenging a settlement was free | it costs a bond equal to the stake |
+| `solc` sat in production dependencies | moved to devDependencies; production audit is clean and CI gates on it |
 
-The cage rests on one invariant, checked wherever value or price moves:
+**What is still true, and is a trust assumption rather than a bug:**
 
-    tokensFor(totalChips) + totalWithdrawable <= address(this).balance
-
-It bounds loss rather than counting units, which is why it cannot be walked
-around one legal step at a time the way the old per-call caps could.
-
-**What is still true, and matters:**
-
-- **The relayer and watchers are trusted.** Verifying a Midnight result on an
-  EVM chain needs a light client or bridge that does not exist yet. The quorum
-  raises the bar from one key to several and `challenge()` means a false
-  settlement refunds rather than pays — but a colluding quorum can still
-  misreport. This is a trusted-committee design, not a trustless one.
-- **Cross-chain burns are attested, not verified.** Where the source cage is on
-  the same chain the burn is read directly. Where it is not, the watchers vouch
-  for it.
-- **Betting is not on-chain** (RA-010). The cage holds chips and the escrow
-  holds a stake, but per-street betting is JavaScript. The demo is a simulator
-  over real contracts, not a real-money path.
-- **Compact has no fold** (RA-009, partial). The UI ends a hand on a fold; the
-  contract only knows show, beat and muck. The lifecycles agree on showdown and
-  diverge on folds.
+- **The dealer chooses the cards.** It can no longer deal one card twice or
+  grind its nonce, but nothing proves the nine cards came from a fair shuffle.
+  A real deck proof is protocol work this project has not done.
+- **The watcher quorum is trusted.** Verifying a Midnight result on an EVM chain
+  needs a light client nobody has built. The quorum raises the bar from one key
+  to several, the reserve cap bounds what one bad receipt can take, and a bonded
+  challenge lets a player stop a false settlement — but a colluding quorum can
+  still misreport.
+- **Betting is not on-chain.** The cage holds chips and the escrow holds a
+  stake; per-street betting is JavaScript. This is a simulator over real
+  contracts, not a real-money path.
 
 **Nightfold is a demonstration of what the muck buys you. Do not put real money
 in it.**
-
-## Limitations
-
-Stated plainly, because a hackathon project that hides its trust assumptions is
-worth less than one that names them.
-
-**The dealer sees the cards.** It cannot *choose* the deck — the shuffle seed is
-`H(seedA, seedB, nonce)` with both players committing before either reveals —
-and it cannot change the deal afterwards, because it publishes a commitment to
-the whole deck before delivering a card and the opening once the hand is over.
-Any misdeal is provable by anyone. But it knows the cards while the hand runs.
-
-Removing that needs a trustless shuffle. We built two and measured both:
-
-| Construction | Deck | Prover key | Per shuffle |
-|---|---|---|---|
-| Oblivious match, O(N²) | 52 | 84.8 MB | ~59s |
-| Benes network, O(N log N) | 64 (52 padded) | 42.1 MB | ~29.5s |
-
-A 2× win, not the 4× needed. Two shuffles a hand plus two more transactions
-would take a hand from 155s to ~280s. **The roadmap path is peer-to-peer
-verification** — each player checks the other's Benes shuffle proof directly,
-which costs 29.5s once and *zero transactions*.
-
-**A published rank reveals the hand's composition.** `2169397` decodes to "two
-pair, aces and kings, nine kicker." That is correct for a player choosing to
-show. `muckHand` and `beatShownRank` exist for players who don't want to.
-
-**The relayer can stall.** No EVM chain can verify a Midnight proof natively, so
-a relayer reports outcomes. It is TRUSTED to report them honestly — a
-2026-08-29 re-audit demonstrated it can name a winner the hand did not produce
-and can credit itself chips against a fabricated deposit. Both need a real
-cross-chain message, not a hash the relayer can recompute. Treat this as a
-trusted-relayer design until that exists. It cannot invent an outcome
-undetectably — the attestation is the exact bytes Midnight wrote, and anyone can
-compare. It *can* delay, so the escrow has a timeout that always returns both
-stakes.
-
-**Not built:** multi-table lobbies, more than two players, side pots, and a
-dispute path beyond the escrow timeout.
-
-## Layout
-
-```
-contracts/
-  HandRank.compact       five-card evaluator (module)
-  nightfold.compact      commitDeal, revealHand, beatShownRank, muckHand, settle
-evm/
-  NightfoldEscrow.sol    per-hand escrow with a timeout path
-src/
-  game/betting.mjs       heads-up no-limit betting
-  game/dealer.mjs        committed, verifiable dealing
-  midnight/              devnet providers + the real-proof harness
-  relayer.mjs            carries a Midnight outcome to N chains
-ui/                      the table
-scripts/devnet.sh        starts the local stack in an order that works
-```
-
-## Taking a seat
-
-`#play` opens a lobby with two lanes, because the questions a first-time
-visitor has ("whose chips are these, do I need a wallet") deserve an answer
-before a hand starts rather than after.
-
-- **Guest table** — 1,000 house chips, dealt immediately, no wallet. Nothing is
-  deposited and nothing settles on a chain; the seat plate says `house chips`
-  rather than dressing them up as a deposit that never happened. The poker and
-  the muck, with the money left out.
-- **Cash table** — connect, pick one of six chains, deposit, and the cage
-  credits chips at the derived rate. Both seats are dealt the same stack,
-  because that is what the cage is for.
-
-`#play?demo=muck` and `#play?demo=showdown` skip the lobby and land on a frozen
-beat — the shot is the hand, not the entrance.
-
-## Running it
-
-```bash
-npm install                  # .npmrc pins legacy-peer-deps; the SDK needs it
-npm run compile              # compile the Compact contracts
-npm run check                # all suites, no chain needed
-
-./scripts/devnet.sh          # local Midnight devnet
-npm run proof:real           # real proofs
-
-npx anvil &                  # local EVM
-npm run check:escrow
-cd ui && npm run dev         # the table
-```
-
-Notes that cost us time, so they don't cost you any:
-
-- npm **silently skips** the Midnight SDK without `--legacy-peer-deps`.
-- Indexer 4.3.3 serves GraphQL at `/api/v3/graphql`; `/api/v1` returns a 308 the
-  wallet client does not follow, which presents as a 90s sync timeout.
-- The indexer dies with `Cannot construct OnlineClientAtBlock: block number 1
-  not found` unless the node has produced blocks first. `scripts/devnet.sh`
-  waits.
-- A local devnet degrades after roughly 600 blocks and wallet sync then stalls
-  silently. `./scripts/devnet.sh reset`.
-- Compact has no module-level `const`, no mutable locals, no `/` or `%`, and no
-  runtime vector indexing.
 
 ## Chains
 

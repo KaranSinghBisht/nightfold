@@ -66,7 +66,7 @@ export const LANES = [
   },
   {
     name: 'THE RELAYER',
-    text: 'Carries a settlement a quorum it is not part of has signed, and either player can dispute one. A colluding quorum is still possible — that is a trust assumption, named rather than hidden.',
+    text: 'Carries settlements a quorum it is not part of has signed, bounded by a reserve cap and stoppable by a bonded challenge. A colluding quorum could still misreport — a trust assumption, named rather than hidden.',
   },
 ];
 

@@ -6,25 +6,44 @@ on:
   push:
   pull_request:
 
+# NFV-013: least privilege by default. A workflow that only builds and tests
+# has no reason to be able to write to the repository.
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      # Pinned to a SHA: a tag is mutable, and this workflow runs on every push.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: 22
           cache: npm
 
       - name: Install foundry (anvil)
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@8f1998e9878d786675189ef566a2e4bf24869773 # v1.2.0
 
+      # Piping `releases/latest` into a shell runs whatever is published at the
+      # moment the job starts. Pin the version and check the artifact before it
+      # executes (NFV-013).
       - name: Install Compact
+        env:
+          COMPACT_VERSION: '0.31.1'
         run: |
-          curl --proto '=https' --tlsv1.2 -LsSf \
-            https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+          set -euo pipefail
+          url="https://github.com/midnightntwrk/compact/releases/download/v${COMPACT_VERSION}/compact-installer.sh"
+          curl --proto '=https' --tlsv1.2 -fsSL "$url" -o /tmp/compact-installer.sh
+          sha256sum /tmp/compact-installer.sh | tee /tmp/compact-installer.sha256
+          if [ -f .github/compact-installer.sha256 ]; then
+            sha256sum -c .github/compact-installer.sha256
+          else
+            echo "::warning::no pinned checksum committed; recording the observed one"
+          fi
+          sh /tmp/compact-installer.sh
           echo "$HOME/.compact/bin" >> "$GITHUB_PATH"
 
       - run: npm ci
@@ -53,4 +72,8 @@ jobs:
 
       - run: npm test
       - run: npm run build --prefix ui
-      - run: npm audit --omit=dev --audit-level=high || true
+      # NFV-012: this used to end in `|| true`, so no advisory could ever gate
+      # the build. solc and viem are build-and-test tools and now live in
+      # devDependencies, so the production tree is clean and this can be real.
+      - name: Production dependencies have no known advisories
+        run: npm audit --omit=dev --audit-level=high

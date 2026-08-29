@@ -148,10 +148,25 @@ verification of a Benes proof, which costs zero transactions.
 pair, aces and kings, nine kicker." That is correct for a player *choosing* to
 show. `muckHand` and `beatOpponent` exist for players who don't want to.
 
-**The relayer is trusted for liveness, not for correctness.** It cannot take
-funds, cannot name a winner the hand did not produce, and cannot mint chips
-without attributable, capped, replay-protected provenance. It *can* stall —
-every path has a timeout or reclaim.
+**The relayer is trusted for liveness. The WATCHER QUORUM is trusted for
+correctness.** An earlier version of this document said the relayer was trusted
+only for liveness and could not name a winner or mint chips. An independent
+verification pass disproved that by doing both, so here is the accurate
+version:
+
+- The relayer on its own can do neither. It carries receipts and settlements it
+  cannot author, cannot name itself as a recipient, and cannot exceed the
+  reserve cap on a single credit.
+- A quorum of watchers *can* do both, because nothing on an EVM chain verifies
+  a Midnight result. That is a trusted-committee design. What bounds it: a
+  single accepted receipt can claim at most 20% of unencumbered reserves, and
+  either player can stop a false settlement with a bonded challenge.
+- Same-chain transfers are verified rather than attested — the destination
+  reads the source cage's receipt — but only from cages on a delayed registry.
+
+**The dealer chooses the cards.** It cannot deal one card twice (`openHand`
+proves all nine are distinct) and it cannot grind its nonce (the commitment is
+mandatory), but nothing proves the deal came from a fair shuffle.
 
 **Not built:** multi-table lobbies, more than two players, side pots, and a
 dispute path beyond the escrow timeout and challenge window. A production
