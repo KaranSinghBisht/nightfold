@@ -4,6 +4,15 @@
 
 Built for the **Midnight Hackathon, August 2026 — Cross-Chain Track**.
 
+**Play it: [nightfold-poker.vercel.app](https://nightfold-poker.vercel.app)**
+
+The deployed site is the interface. The poker, the muck and wallet connect run
+in your browser — deal yourself in and the losing hand is never rendered, which
+you can check with devtools open. Everything with a chain in it runs locally:
+the contracts, the ZK proofs and the Solana watcher are exercised by
+`npm run check`, against anvil and a real Solana devnet deposit. Nothing on the
+site asks you to sign a transaction, because nothing on the site sends one.
+
 ---
 
 ## The idea

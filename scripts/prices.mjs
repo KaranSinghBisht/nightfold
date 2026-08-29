@@ -33,7 +33,15 @@ try {
   process.exit(1);
 }
 
-const byId = Object.fromEntries(live.map((c) => [c.id, c]));
+// This is a system boundary: whatever comes back here becomes the exchange
+// rate the cages price buy-ins at, so a bad number is a bad rate, not a bad
+// pixel. A 200 response carrying an error object would have thrown an
+// unhandled TypeError on .map below.
+if (!Array.isArray(live)) {
+  console.error('the price API did not return a list — pricing.json left as it was');
+  process.exit(1);
+}
+const byId = Object.fromEntries(live.map((c) => [c?.id, c]));
 
 /** 168 hourly points is more than a 70px sparkline can show; take 32. */
 function thin(series, want = 32) {
@@ -41,8 +49,9 @@ function thin(series, want = 32) {
   const step = (series.length - 1) / (want - 1);
   return Array.from({ length: want }, (_, i) => {
     const v = series[Math.round(i * step)];
-    return Math.round(v * 1e4) / 1e4;
-  });
+    // A hole in the series must not become NaN in a committed file.
+    return Number.isFinite(v) ? Math.round(v * 1e4) / 1e4 : null;
+  }).filter((v) => v !== null);
 }
 
 const assets = {};
@@ -50,8 +59,9 @@ const change24h = {};
 const spark = {};
 for (const [ticker, id] of Object.entries(IDS)) {
   const row = byId[id];
-  if (!row || typeof row.current_price !== 'number') {
-    console.error(`no USD price came back for ${ticker} — pricing.json left as it was`);
+  // typeof NaN is 'number', and so is Infinity. Neither is a price.
+  if (!row || !Number.isFinite(row.current_price) || row.current_price <= 0) {
+    console.error(`no usable USD price came back for ${ticker} — pricing.json left as it was`);
     process.exit(1);
   }
   assets[ticker] = row.current_price;
