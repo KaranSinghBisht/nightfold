@@ -6,7 +6,7 @@ import { EYE, CHEVRON, BAR, LOCK, HASH } from './PixelMark';
 export const TICKER = [
   'NO HOLE CARD EVER PUBLISHED',
   'MIDNIGHT COMPACT CIRCUITS',
-  'BASE + SOLANA CAGE',
+  'SIX CHAINS · ONE CAGE',
   'ONE CHIP STACK',
 ];
 
@@ -55,12 +55,6 @@ export const PROTOCOL = [
   },
 ];
 
-export const CAGE_BULLETS = [
-  'DEPOSIT BASE ETH OR SOLANA SOL',
-  'ONE CHIP STACK AT THE TABLE',
-  'CASH OUT ON EITHER CHAIN',
-];
-
 /* The cage ledger, at the rates the contracts actually use:
    1 ETH = 20,000 chips and 1 SOL = 100 chips (src/evm/cage.test.mjs). Two
    buy-ins of 1,000 make a 2,000 chip table; Alice leaves with 1,850 of it. */
@@ -76,8 +70,8 @@ export const CAGE_LEDGER = {
 
 export const LANES = [
   {
-    name: 'BASE + SOLANA',
-    text: 'Cages hold the money. Betting settles in seconds and costs almost nothing.',
+    name: 'SIX MONEY CHAINS',
+    text: 'Cages hold the money — EVM natively, Bitcoin, Cardano, Solana and NEAR by attested provenance. Betting settles in seconds.',
   },
   {
     name: 'MIDNIGHT',
@@ -89,8 +83,10 @@ export const LANES = [
   },
 ];
 
+/* Both of these are permanent properties rather than a test count that goes
+   stale the next time a suite grows. */
 export const STATS = [
-  { value: '159', label: 'CHECKS PASSING' },
+  { value: '6', label: 'MONEY CHAINS' },
   { value: '0', label: 'HOLE CARDS LEAKED' },
 ];
 

@@ -1,7 +1,8 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { PixelMark } from './PixelMark';
-import { CageWindow } from './CageWindow';
-import { TICKER, ENDINGS, PROTOCOL, CAGE_BULLETS, LANES, STATS } from './copy';
+import { AsciiCage } from './AsciiCage';
+import { CHAINS } from './chains';
+import { TICKER, ENDINGS, PROTOCOL, LANES, STATS } from './copy';
 import './sections.css';
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -116,8 +117,14 @@ export function Cage() {
     <section className="arcSec" id="cage">
       <div className="arc__inner">
         <div className="arcCage">
-          <motion.div {...reveal()}>
-            <CageWindow />
+          <motion.div className="arcCage__ascii" {...reveal()}>
+            <div className="arcCage__head">
+              <span className="arcCage__headName">CAGE_LEDGER_#0A4F</span>
+              <span className="arcCage__headProof">CONSERVATION: PROVEN</span>
+            </div>
+            <div className="arcCage__screen">
+              <AsciiCage />
+            </div>
           </motion.div>
 
           <motion.div className="arcCage__body" {...reveal(1)}>
@@ -132,20 +139,46 @@ export function Cage() {
             </div>
             <p className="arc__lede">
               A card room does not let you bet dollars against euros — you buy chips
-              at the cage and settle up on the way out. Nightfold works the same way,
-              which is what makes it cross-chain instead of two escrows standing side
-              by side.
+              at the cage and settle up on the way out. The cage never learns which
+              chain a deposit came from: provenance is an opaque pair it
+              replay-protects. That is why a chain is a watcher here, not a new
+              contract.
             </p>
-            <ul className="arcCage__bullets">
-              {CAGE_BULLETS.map((b) => (
-                <li className="arcCage__bullet" key={b}>
-                  <span className="arcCage__sq" />
-                  {b}
-                </li>
+            <div className="arcChains">
+              {CHAINS.map((c, i) => (
+                <motion.div className="arcChain" key={c.id} {...reveal(i * 0.4)}>
+                  <span className="arcChain__mark" style={{ color: c.colour }}>
+                    <PixelMark grid={c.mark} size={20} />
+                  </span>
+                  <span className="arcChain__text">
+                    <span className="arcChain__name">{c.name}</span>
+                    <span className="arcChain__rate">1 {c.ticker} = {c.rate} chips</span>
+                  </span>
+                  <span className={`arcChain__mode arcChain__mode--${c.mode}`}>
+                    {c.mode === 'native' ? 'NATIVE' : 'ATTESTED'}
+                  </span>
+                </motion.div>
               ))}
-            </ul>
+            </div>
           </motion.div>
         </div>
+
+        <motion.div className="arcCage__strip" {...reveal(2)}>
+          <span className="arcCage__stripRow">
+            <b style={{ color: '#0052FF' }}>BASE</b> 0.05 ETH → 1,000 chips
+          </span>
+          <span className="arcCage__stripRow">
+            <b style={{ color: '#9945FF' }}>SOLANA</b> 10 SOL → 1,000 chips
+          </span>
+          <span className="arcCage__stripRow arcCage__stripRow--pot">2,000 CHIPS IN PLAY</span>
+          <span className="arcCage__stripRow">
+            <b style={{ color: '#9945FF' }}>SOLANA</b> 1,850 chips → 18.5 SOL
+          </span>
+        </motion.div>
+        <motion.p className="arcCage__punch" {...reveal(2)}>
+          Alice bought in on Base. She left on Solana. Neither cage ever held both
+          assets, and the chip ledger conserves across all six.
+        </motion.p>
       </div>
     </section>
   );
@@ -180,7 +213,7 @@ export function Lanes({ onPlay }: FootProps) {
       <footer className="arcFoot">
         <div className="arcFoot__band">
           <div>
-            <h3 className="arcFoot__title">POWERED BY MIDNIGHT, BASE &amp; SOLANA</h3>
+            <h3 className="arcFoot__title">POWERED BY MIDNIGHT · SIX MONEY CHAINS</h3>
             <p className="arcFoot__text">
               Compact circuits hold the cards, fast chains hold the money, and one
               relayer carries a proven outcome between them. It can stall. It cannot

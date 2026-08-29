@@ -192,6 +192,33 @@ Notes that cost us time, so they don't cost you any:
 - Compact has no module-level `const`, no mutable locals, no `/` or `%`, and no
   runtime vector indexing.
 
+## Chains
+
+The cage credits chips against an opaque `(sourceChainId, sourceDepositId)`
+pair, so it never needed to know which chain a deposit came from. Adding a
+chain is a watcher, not a new contract. Two modes, and the difference is real:
+
+| Chain    | Mode     | What that means                                              |
+|----------|----------|--------------------------------------------------------------|
+| Base     | native   | the cage contract custodies the deposit — `buyIn()` is payable |
+| Ethereum | native   | same bytecode; every EVM chain is one adapter                 |
+| Solana   | attested | a watcher posts the deposit reference; the cage replay-protects it |
+| Cardano  | attested | as above                                                      |
+| Bitcoin  | attested | as above                                                      |
+| NEAR     | attested | as above                                                      |
+
+`npm run check:chains` proves it: six chains credit one chip ledger, each
+deposit is single-use, a shared deposit id across two chains is NOT a replay
+(the pair is the key), every credit emits its source so anyone can check it
+against that chain, and chips bought on five chains cash out on a sixth.
+
+Non-EVM chain ids are CAIP-2 strings hashed into the same `uint256` space, so
+the source string is recoverable from the event.
+
+Live watchers exist for the EVM leg. The other four are exercised through the
+relayer's attestation path in tests and are not watching mainnets — that is the
+honest limit, and `docs/security.md` records what the relayer can and cannot do.
+
 ## Licence
 
 MIT.

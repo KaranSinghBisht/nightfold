@@ -110,7 +110,8 @@ export function Hero({ onPlay }: Props) {
 
           <motion.p className="arc__pitch" {...step(3)}>
             Heads-up hold'em where the losing hand is never published. Buy in from
-            Base or Solana, play the cards on Midnight, cash out wherever you like.
+            any of six chains, play the cards on Midnight, cash out on a chain you
+            never deposited to.
           </motion.p>
 
           <motion.div className="arc__ctas" {...step(4)}>
