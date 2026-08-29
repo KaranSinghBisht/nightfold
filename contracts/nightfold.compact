@@ -395,8 +395,16 @@ export circuit settle(handId: Bytes<32>): Uint<8> {
   const beat0 = beatShown.member(k0);
   const beat1 = beatShown.member(k1);
 
-  assert(shown0 || muck0 || beat0, "seat 0 has not acted");
-  assert(shown1 || muck1 || beat1, "seat 1 has not acted");
+  // NFV-007: this required BOTH seats to act, while the UI settled on the
+  // first muck. Two lifecycles for one game — and the strict version is also a
+  // liveness trap, because a winner who never acts strands the pot forever.
+  //
+  // A muck is a concession and resolves the hand by itself; anything else is a
+  // real showdown and needs both answers to compare. Same rule as
+  // src/game/lifecycle.mjs, which every other component consumes.
+  const conceded = muck0 || muck1;
+  assert(conceded || (shown0 || beat0), "seat 0 has not acted");
+  assert(conceded || (shown1 || beat1), "seat 1 has not acted");
 
   // beatOpponent requires the opponent to have shown, so only one seat can
   // ever hold the beat. Asserted rather than assumed.

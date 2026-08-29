@@ -26,6 +26,8 @@
  */
 const wellFormedAttestation = (v) => v instanceof Uint8Array && v.length === 32;
 
+import { resolve } from './game/lifecycle.mjs';
+
 /**
  * Read a settled hand's outcome. Returns null if the hand has not settled, so
  * this is safe to poll.
@@ -51,18 +53,20 @@ export function readOutcome(ledgerView, handId, seatKeyOf) {
   const beat1 = ledgerView.beatShown.member(k1);
 
   // Every seat must have acted, or the hand could not have settled.
-  if (!(shown0 || muck0 || beat0) || !(shown1 || muck1 || beat1)) return null;
+  // NFV-007: one rule, in one place. This used to restate the ordering and
+  // agreed with the contract by luck rather than by construction.
+  const ending = [
+    muck0 ? 'muck' : beat0 ? 'beat' : shown0 ? 'show' : null,
+    muck1 ? 'muck' : beat1 ? 'beat' : shown1 ? 'show' : null,
+  ];
+  const ranks = [
+    shown0 ? Number(ledgerView.shownRanks.lookup(k0)) : 0,
+    shown1 ? Number(ledgerView.shownRanks.lookup(k1)) : 0,
+  ];
+  const verdict = resolve(ending, ranks);
+  if (!verdict.done) return null;
 
-  // Same ordering bug as the contract had (RA-009): both-muck must split, not
-  // fall through to seat 0. The comment above already said so.
-  const winner = (muck0 && muck1) ? 2
-    : muck1 ? 0
-    : muck0 ? 1
-    : beat0 ? 0
-    : beat1 ? 1
-    : ledgerView.shownRanks.lookup(k0) > ledgerView.shownRanks.lookup(k1) ? 0
-    : ledgerView.shownRanks.lookup(k1) > ledgerView.shownRanks.lookup(k0) ? 1
-    : 2;
+  const winner = verdict.winner;
 
   const attestation = ledgerView.payoutAttest.lookup(handId);
   if (!wellFormedAttestation(attestation)) return null;

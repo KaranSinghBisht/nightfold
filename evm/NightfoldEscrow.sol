@@ -27,6 +27,8 @@ contract NightfoldEscrow {
     enum Status { Empty, Open, Funded, Settling, Disputed, Paid, Refunded }
 
     struct Hand {
+        address challenger;
+        uint128 bond;
         address seat0;
         address seat1;
         uint128 stake;
@@ -41,7 +43,7 @@ contract NightfoldEscrow {
     /// @notice Pull-payment balances.
     mapping(address => uint256) public withdrawable;
 
-    address public immutable relayer;
+    address public relayer;
     uint64 public constant TIMEOUT = 1 hours;
     /// @notice Time either seat has to dispute a reported outcome.
     uint64 public constant CHALLENGE = 10 minutes;
@@ -65,13 +67,17 @@ contract NightfoldEscrow {
     error TransferFailed();
     error BadSignatures();
     error NotAdmin();
+    error Paused();
 
     address public admin;
+    address public pendingAdmin;
+    bool public paused;
     mapping(address => bool) public isWatcher;
     uint256 public watcherCount;
     uint256 public threshold;
 
     event Challenged(bytes32 indexed handId, address indexed by);
+    event ChallengeConceded(bytes32 indexed handId, address indexed by, address indexed paidTo, uint256 bond);
     event WatchersSet(uint256 count, uint256 threshold);
 
     /// @dev Signers must arrive in ascending address order, so one watcher
@@ -99,6 +105,34 @@ contract NightfoldEscrow {
             if (who == address(0) || who <= last || !isWatcher[who]) revert BadSignatures();
             last = who;
         }
+    }
+
+    /// @dev NFV-009: the escrow had an immutable relayer, an immutable admin
+    ///      and no pause, so a compromised relayer key meant redeploying and
+    ///      abandoning every open hand. Rotation is two-step for the same
+    ///      reason the cage's is.
+    function transferAdmin(address next) external {
+        if (msg.sender != admin) revert NotAdmin();
+        pendingAdmin = next;
+    }
+
+    function acceptAdmin() external {
+        if (msg.sender != pendingAdmin) revert NotAdmin();
+        admin = pendingAdmin;
+        pendingAdmin = address(0);
+    }
+
+    function setRelayer(address next) external {
+        if (msg.sender != admin) revert NotAdmin();
+        if (next == address(0)) revert BadAttestation();
+        relayer = next;
+    }
+
+    /// @notice Stop new hands. Never stops settlement, timeout or withdrawal —
+    ///         a pause must not strand a stake that is already down.
+    function setPaused(bool next) external {
+        if (msg.sender != admin) revert NotAdmin();
+        paused = next;
     }
 
     function setWatchers(address[] calldata watchers, uint256 newThreshold) external {
@@ -142,6 +176,7 @@ contract NightfoldEscrow {
     }
 
     function openHand(bytes32 handId) external payable {
+        if (paused) revert Paused();
         Hand storage h = hands[handId];
         if (h.status != Status.Empty) revert SeatTaken();
         if (msg.value == 0) revert WrongStake();
@@ -200,14 +235,48 @@ contract NightfoldEscrow {
     ///      the hand to Disputed, from which the stakes are refundable after
     ///      the deadline. A liar cannot be paid; both players get their money
     ///      back and the disagreement is settled off-chain.
-    function challenge(bytes32 handId) external {
+    /// @dev NFV-006: this used to need nothing but a seat. A loser could
+    ///      challenge every correct result and force a refund, so "challenge"
+    ///      was a free veto on losing — worse than no dispute path, because it
+    ///      let the honest winner be robbed of a pot they had won.
+    ///
+    ///      A challenge now costs a bond equal to the stake. If the settlement
+    ///      stands, the bond goes to the seat that was named the winner; if the
+    ///      hand refunds, the challenger gets it back. Disputing a result you
+    ///      know is right now costs exactly what losing costs, so it stops
+    ///      being free.
+    function challenge(bytes32 handId) external payable {
         Hand storage h = hands[handId];
         if (h.status != Status.Settling) revert WrongStatus();
         if (msg.sender != h.seat0 && msg.sender != h.seat1) revert NotSeated();
         if (block.timestamp >= h.settledAt + CHALLENGE) revert TooEarly();
+        if (msg.value != h.stake) revert WrongStake();
 
         h.status = Status.Disputed;
+        h.challenger = msg.sender;
+        h.bond = uint128(msg.value);
         emit Challenged(handId, msg.sender);
+    }
+
+    /// @notice Let a stood-down challenge resolve: the settlement proceeds and
+    ///         the bond goes to the winner it named.
+    ///
+    /// @dev Deliberately callable by anyone once the window has run, because
+    ///      the outcome is already determined and nobody should be able to
+    ///      strand it by declining to act.
+    function concedeChallenge(bytes32 handId) external {
+        Hand storage h = hands[handId];
+        if (h.status != Status.Disputed) revert WrongStatus();
+        if (msg.sender != h.challenger) revert NotSeated();
+
+        uint256 bond = h.bond;
+        h.bond = 0;
+        h.status = Status.Settling;
+        h.settledAt = uint64(block.timestamp);
+
+        address paidTo = h.winner == 0 ? h.seat0 : h.winner == 1 ? h.seat1 : h.challenger;
+        withdrawable[paidTo] += bond;
+        emit ChallengeConceded(handId, h.challenger, paidTo, bond);
     }
 
     /// @notice After the challenge window, credit the winner. Callable by
@@ -247,6 +316,12 @@ contract NightfoldEscrow {
 
         withdrawable[h.seat0] += h.stake;
         if (was == Status.Funded || was == Status.Disputed) withdrawable[h.seat1] += h.stake;
+        // A dispute that ends in a refund returns the challenger's bond: they
+        // were not proven wrong, so they should not be charged.
+        if (was == Status.Disputed && h.bond != 0) {
+            withdrawable[h.challenger] += h.bond;
+            h.bond = 0;
+        }
 
         emit HandRefunded(handId);
     }

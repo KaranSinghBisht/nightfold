@@ -14,9 +14,11 @@ import { unitsForChips } from '../arcade/chains';
 import { newHand, act as bet, legalActions, payout, endedOnFold } from '@shared/game/betting.mjs';
 // @ts-expect-error — plain JS module shared with the test suites
 import { commitSeed, commitNonce, deal, cardName } from '@shared/game/dealer.mjs';
+// @ts-expect-error — plain JS module shared with the test suites
+import { resolve as resolveLifecycle } from '@shared/game/lifecycle.mjs';
 
 import type { Card, Chain as ChainId, LedgerEvent, Seat, Phase } from './types';
-import { seal, rankSealed, reveal } from './vault';
+import { seal, reveal } from './vault';
 
 export type Action =
   | { type: 'fold' }
@@ -170,30 +172,18 @@ export function resolveShowdown(e: Engine, seat: 0 | 1, choice: Showdown, rankOf
 
   const next = { ...e, shown, revealedHole, events };
 
-  // A muck is a concession. The opponent takes the pot and never has to show —
-  // which is the cheapest privacy in poker and the whole point of the feature.
-  if (choice === 'muck') {
-    const other = (seat === 0 ? 1 : 0) as 0 | 1;
-    return settle({ ...next, phase: 'settled', winner: other }, 'uncontested');
-  }
+  // NFV-007: this used to settle the instant one seat mucked, while Compact
+  // refused until both had acted — two lifecycles for one game. The rule now
+  // lives in one place and every component asks it.
+  const ranks: [number, number] = [
+    shown[0] === 'show' ? rankOf([...(revealedHole[0] ?? e.hole[0]), ...e.board]) : 0,
+    shown[1] === 'show' ? rankOf([...(revealedHole[1] ?? []), ...e.board]) : 0,
+  ];
+  const verdict = resolveLifecycle(shown, ranks);
+  if (!verdict.done) return next;
 
-  if (shown[0] && shown[1]) return decide(next, rankOf);
-  return next;
-}
-
-function decide(e: Engine, rankOf: (ids: number[]) => number): Engine {
-  const [s0, s1] = e.shown;
-  let winner: 0 | 1 | 2;
-
-  if (s0 === 'muck' && s1 === 'muck') winner = 2;
-  else if (s0 === 'muck') winner = 1;
-  else if (s1 === 'muck') winner = 0;
-  else {
-    const r0 = rankOf([...e.hole[0], ...e.board]);
-    const r1 = rankSealed(e.handId, e.board, rankOf);
-    winner = r0 > r1 ? 0 : r1 > r0 ? 1 : 2;
-  }
-  return settle({ ...e, phase: 'settled', winner });
+  return settle({ ...next, phase: 'settled', winner: verdict.winner },
+                verdict.winner === 2 && shown[0] === 'muck' ? 'uncontested' : undefined);
 }
 
 function settle(e: Engine, note?: string): Engine {

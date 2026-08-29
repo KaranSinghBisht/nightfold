@@ -170,7 +170,12 @@ console.log('\nNF-006 — escrow paid whatever winner the relayer named\n');
         await reverts(async () => call('relayer', 'proposeSettlement', [handId, 1, await sign(1, 1)])));
 
   await wait(await call('relayer', 'proposeSettlement', [handId, 1, await sign(1)]));
-  check('a quorum-signed settlement is accepted', Number((await read('hands', [handId]))[5]) === 3);
+  const handOf = async (id) => {
+    const raw = await read('hands', [id]);
+    const names = escrow.abi.find((f) => f.type === 'function' && f.name === 'hands').outputs.map((o) => o.name);
+    return Object.fromEntries(names.map((n, i) => [n, raw[i]]));
+  };
+  check('a quorum-signed settlement is accepted', Number((await handOf(handId)).status) === 3);
 
   check('funds are not payable during the challenge window',
         await reverts(() => call('alice', 'finaliseSettlement', [handId])));

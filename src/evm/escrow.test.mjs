@@ -65,12 +65,19 @@ const STAKE = parseEther('0.05');
 const handId = keccak256(toHex('nightfold:hand:1'));
 
 await wait(await call('alice', 'openHand', [handId], STAKE));
-check('alice opened the hand', (await read('hands', [handId]))[0] === acct.alice.address);
+/** Read a Hand by NAME. Positional indices break on every struct change. */
+const hand = async (id) => {
+  const raw = await read('hands', [id]);
+  const names = abi.find((f) => f.type === 'function' && f.name === 'hands').outputs.map((o) => o.name);
+  return Object.fromEntries(names.map((n, i) => [n, raw[i]]));
+};
+
+check('alice opened the hand', (await hand(handId)).seat0 === acct.alice.address);
 check('seat 1 must match the stake',
       await reverts(() => call('bob', 'joinHand', [handId], parseEther('0.01'))));
 
 await wait(await call('bob', 'joinHand', [handId], STAKE));
-check('bob joined, hand is funded', Number((await read('hands', [handId]))[5]) === 2);
+check('bob joined, hand is funded', Number((await hand(handId)).status) === 2);
 
 check('a stranger cannot propose a settlement',
       await reverts(async () => call('mallory', 'proposeSettlement', [handId, 1, await sign(handId, 1)])));
@@ -81,7 +88,7 @@ check('the relayer alone cannot settle',
       await reverts(() => call('relayer', 'proposeSettlement', [handId, 1, []])),
       'RA-002: a quorum it is not part of has to sign');
 await wait(await call('relayer', 'proposeSettlement', [handId, 1, await sign(handId, 1)]));
-check('the relayer proposes a matching outcome', Number((await read('hands', [handId]))[5]) === 3);
+check('the relayer proposes a matching outcome', Number((await hand(handId)).status) === 3);
 check('nobody is paid during the challenge window',
       (await read('withdrawable', [acct.bob.address])) === 0n);
 
@@ -140,11 +147,16 @@ console.log('\na disputed settlement refunds instead of paying\n');
   await wait(await call('relayer', 'proposeSettlement', [id, 0, await sign(id, 0)]));
 
   check('a stranger cannot challenge',
-        await reverts(() => call('mallory', 'challenge', [id])));
+        await reverts(() => call('mallory', 'challenge', [id], parseEther('0.05'))));
+  // NFV-006: challenging used to be free, so a loser could veto every correct
+  // result. It now costs what losing costs.
+  check('challenging without a bond is refused',
+        await reverts(() => call('bob', 'challenge', [id])),
+        'a free veto is not a dispute mechanism');
 
   // Bob thinks the reported winner is wrong. Before, there was a ten minute
   // window with no way to act in it, so waiting paid the liar.
-  await wait(await call('bob', 'challenge', [id]));
+  await wait(await call('bob', 'challenge', [id], parseEther('0.05')));
   check('a challenged hand cannot be finalised',
         await reverts(() => call('bob', 'finaliseSettlement', [id])),
         'the named winner is not paid');
