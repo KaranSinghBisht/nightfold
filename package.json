@@ -33,7 +33,8 @@
     "check:chains": "node src/evm/chains.test.mjs",
     "check:pricing": "node src/evm/pricing.test.mjs",
     "prices": "node scripts/prices.mjs",
-    "check:exploits": "node src/evm/exploits.test.mjs"
+    "check:exploits": "node src/evm/exploits.test.mjs",
+    "logo": "node scripts/logo.mjs"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.16.0",

@@ -1,0 +1,24 @@
+{
+  "_": "The Nightfold mark, as a pixel grid. This file is the ONLY definition: the React brand mark reads it, and scripts/logo.mjs generates the favicon and social card from it, so the logo in the nav and the logo in the browser tab cannot drift apart. '#' is the spade, '=' is the muck bar beneath it \u2014 the hand you show, above the one that never gets published.",
+  "grid": [
+    ".......##.......",
+    "......####......",
+    ".....######.....",
+    "....########....",
+    "...##########...",
+    "..############..",
+    ".##############.",
+    "################",
+    "################",
+    "################",
+    "####..####..####",
+    "###....##....###",
+    ".......##.......",
+    "......####......",
+    ".==============.",
+    ".==============."
+  ],
+  "spade": "#5C9BFF",
+  "muck": "#FF5252",
+  "ground": "#06080B"
+}

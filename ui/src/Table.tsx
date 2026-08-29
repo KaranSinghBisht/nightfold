@@ -4,7 +4,7 @@ import { botAction, botShowdown } from './game/bot';
 import { rankOf, handName } from './game/rank';
 import { Felt } from './components/Felt';
 import { ChainRail, type SessionStats } from './components/ChainRail';
-import { PixelMark, SPADE } from './arcade/PixelMark';
+import { Logo } from './arcade/Logo';
 import { CHAINS, rateOf, unitsForChips } from './arcade/chains';
 import { CageModal, type BuyIn } from './arcade/CageModal';
 import { connect, short, type Wallet } from './arcade/wallet';
@@ -118,7 +118,7 @@ export function Table() {
       <div className="desk__tube" aria-hidden />
       <header className="desk__bar">
         <a className="desk__brand" href="#/">
-          <PixelMark grid={SPADE} size={22} className="desk__mark" label="Nightfold" />
+          <Logo size={24} className="desk__mark" label="Nightfold" />
           <span className="desk__wordmark">NIGHTFOLD</span>
           <span className="desk__tag">the loser never shows</span>
         </a>

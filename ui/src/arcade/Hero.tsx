@@ -1,7 +1,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import CRTWarp from '../components/CRTWarp';
 import { PlayingCard } from '../components/PlayingCard';
-import { PixelMark, SPADE } from './PixelMark';
+import { Logo } from './Logo';
 import { Monitor } from './Monitor';
 
 interface Props {
@@ -53,7 +53,7 @@ export function Hero({ onPlay }: Props) {
       <div className="arc__inner">
         <nav className="arc__nav">
           <span className="arc__brand">
-            <PixelMark grid={SPADE} size={26} className="arc__brandMark" label="Nightfold" />
+            <Logo size={28} className="arc__brandMark" label="Nightfold" />
             <span className="arc__brandText">
               <span className="arc__brandName">NIGHTFOLD</span>
               <span className="arc__brandSub">ZK HOLD'EM ON MIDNIGHT</span>

@@ -35,17 +35,6 @@ export function PixelMark({ grid, size = 16, className, label }: Props) {
   );
 }
 
-export const SPADE = [
-  '...##...',
-  '..####..',
-  '.######.',
-  '########',
-  '########',
-  '##.##.##',
-  '...##...',
-  '..####..',
-];
-
 export const EYE = [
   '........',
   '..####..',
