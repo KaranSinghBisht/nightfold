@@ -19,7 +19,11 @@ import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-j
 import { buildWallet, buildProviders, logger } from './providers.mjs';
 import { LOCAL, ZK_CONFIG_PATH as ZK_ASSETS } from './config.mjs';
 import * as nightfold from '../../contracts/managed/nightfold/contract/index.js';
-import { emptyPrivateState, stage, cards, showHand, bestFive } from '../witnesses.mjs';
+// NFV-004, again: this file had its OWN witness bundle, missing four of the
+// six the contract requires. The CI check added for that constructed the
+// SHARED bundle and passed while this one could not build the contract at all —
+// testing the thing next to the thing under test. There is one bundle.
+import { witnesses, emptyPrivateState, stage, cards, showHand, bestFive } from '../witnesses.mjs';
 
 const PS_ID = 'nightfold';
 
@@ -56,7 +60,7 @@ async function main() {
   // midnight-js 4.x wants a CompiledContract: the generated constructor, the
   // witnesses, and the path to the compiled assets, bound together.
   const compiledContract = CompiledContract.make('nightfold', nightfold.Contract).pipe(
-    CompiledContract.withWitnesses(witnessBundle()),
+    CompiledContract.withWitnesses(witnesses),
     CompiledContract.withCompiledFileAssets(ZK_ASSETS)
   );
 
@@ -131,16 +135,6 @@ async function main() {
 
   await wallet.stop?.();
   process.exit(0);
-}
-
-/** Witnesses read the staged private state the provider holds. */
-function witnessBundle() {
-  return {
-    holeCards: ({ privateState }) => [privateState, privateState.hole],
-    holeSalt: ({ privateState }) => [privateState, privateState.salt],
-    claimedHand: ({ privateState }) => [privateState, privateState.claimed],
-    handPick: ({ privateState }) => [privateState, privateState.pick],
-  };
 }
 
 main().catch((e) => {

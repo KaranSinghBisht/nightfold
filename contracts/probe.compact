@@ -1,23 +1,13 @@
-pragma language_version >= 0.20;
+pragma language_version 0.23;
+
 import CompactStandardLibrary;
 
-// Minimal probe: does ANY circuit call pass /check on this stack?
-// bump() touches only a Counter -- the simplest possible ledger op.
-// mapPut() touches a Map, which is the ADT Nightfold relies on and NightPool
-// never used. If bump passes and mapPut fails, Map is the culprit.
+// The smallest possible circuit that still touches state, to answer one
+// question: can ANY circuit call pass /check on this stack? If bump() works,
+// the stack is fine and the problem is specific to Nightfold's circuits.
 
 export ledger hits: Counter;
-export ledger store: Map<Bytes<32>, Bytes<32>>;
-
-witness secret(): Bytes<32>;
 
 export circuit bump(): [] {
-  const s = secret();
-  assert(s != pad(32, ""), "needs a secret");
   hits.increment(1);
-}
-
-export circuit mapPut(key: Bytes<32>): [] {
-  const s = secret();
-  store.insert(disclose(key), disclose(s));
 }

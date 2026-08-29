@@ -77,12 +77,46 @@ Real ZK proofs run against a local devnet:
 npm run proof:real           # deploy + play a hand with real proofs
 ```
 
-**Be precise about what that last one has and has not shown.** The harness
-constructs the current contract and CI proves it does — an audit caught it
-silently targeting a removed API, which is why that check exists. The timings
-below come from earlier runs against an earlier version of the circuits. The
-deal circuit has since more than tripled in size, and those numbers have not
-been re-measured end to end on a devnet.
+**What that has and has not shown, exactly.**
+
+It works up to and including deployment. The wallet syncs, DUST registers, and
+the contract deploys to a local devnet with real ZK proofs:
+
+```
+INFO: Your wallet NIGHT balance is: 250000000000000
+INFO: deploying nightfold...
+INFO: deployed in 17.7s at ecedc51f8b47a900137d42ebf9a11c928f8fa7f99c3057fc006f3401e7170285
+```
+
+**Circuit calls do not.** Every one is rejected by the proof server:
+
+```
+'check' returned an error: Failed Proof Server response:
+url="http://127.0.0.1:6300/check", code="400", status="Bad Request"
+```
+
+`scripts/proof-proxy.mjs` captures the body the SDK hides — the server replies
+`bad input` to an 820-byte request in 11ms, which is a rejection before any
+work, not a proof that failed.
+
+**It is not this contract.** `scripts/probe.mjs` deploys a contract whose entire
+body is a counter and a circuit that increments it, with no witnesses at all,
+and its call is rejected identically:
+
+```
+INFO: probe deployed at 6c80f69d9c9aac853c9dfff5504bf6a8d9e729e7e69fcc174bc5f8c90f302fa4
+'check' returned an error: ... code="400" ...
+```
+
+So on this stack — compiler 0.31.1, runtime 0.16.0, ledger 8.1.0, proof server
+8.1.0, all aligned, single WASM copy, IR present on disk, no payload limit (the
+server accepts 20 MB) — deploys prove and circuit calls do not. Ruled out:
+version skew, duplicate runtimes, missing keys, asset paths, request size.
+
+Every circuit is exercised against the Compact simulator instead, which is what
+`npm run check` runs. The timings in the table above come from earlier runs on
+smaller circuits and have not been re-measured, because the calls that would
+re-measure them are the ones being rejected.
 
 ## Measured, not assumed
 
@@ -279,9 +313,28 @@ and proves it cannot be credited twice. The network-dependent checks skip rather
 than fail when devnet is unreachable, because a third party being down is not a
 regression.
 
-One manual step remains: the devnet faucet refuses programmatic airdrops, so the
-player address has to be funded once at <https://faucet.solana.com> before
-`solana:deposit` can run. Everything either side of that is live.
+**A real deposit, on chain.** Not a fixture — this is `npm run solana:watch`
+against Solana devnet:
+
+```
+deposit address  5a4uv9n8hEcXyVZgKsxarct273ekkYE43W84i3rKSB9c
+published rate   1 SOL = 517 chips
+
+1 deposit(s):
+
+  0.0500 SOL -> 25 chips
+    from   CKAWFC49YwmeQ2oe4X4GjKeXgKSzimH24yqc5wG7gK5a
+    credit 0x9F2cA1E4B6d3705e8AC0f2b21B4Dd7C0E1a94d81
+    tx     https://explorer.solana.com/tx/23P3tXkYXw5fVVNLpGPFacmzsqL2EfawyyksVLG1CgUw9nGNM57UeastttKHyMoK3KSdFRfjz4TDh1oMYNUTf9D2?cluster=devnet
+```
+
+That transaction is public: open the explorer link and you will find 0.05 SOL
+moving with an EVM address in the memo. `check:solana` reads it off the chain,
+builds the receipt from that signature, and credits it on the cage.
+
+The one manual step is funding: the devnet faucet refuses programmatic airdrops,
+so the player address is topped up by hand at <https://faucet.solana.com>.
+Everything either side of that is live.
 
 **Cardano, Bitcoin and NEAR are still attested.** The cage's side of it is real
 and tested:

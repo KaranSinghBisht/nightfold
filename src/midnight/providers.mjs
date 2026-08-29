@@ -64,7 +64,7 @@ function statePassword(env) {
 }
 
 /** Assemble the provider bundle a contract call needs. */
-export function buildProviders(wallet, { env = LOCAL, privateStateDir = '.nightfold-state' } = {}) {
+export function buildProviders(wallet, { env = LOCAL, privateStateDir = '.nightfold-state', zkConfigPath = ZK_CONFIG_PATH } = {}) {
   // Scopes the witness store to this wallet, so two players sharing a machine
   // never read each other's hole cards out of the same LevelDB.
   const accountId = wallet.coinPublicKey?.toString?.() ?? String(wallet.coinPublicKey ?? 'nightfold');
@@ -80,7 +80,9 @@ export function buildProviders(wallet, { env = LOCAL, privateStateDir = '.nightf
       accountId,
     }),
     publicDataProvider: indexerPublicDataProvider(env.indexer, env.indexerWS),
-    zkConfigProvider: new NodeZkConfigProvider(ZK_CONFIG_PATH),
+    // Overridable: the provider's path wins over the CompiledContract's, so a
+    // second contract (scripts/probe.mjs) needs to say where ITS keys are.
+    zkConfigProvider: new NodeZkConfigProvider(zkConfigPath),
     proofProvider: httpClientProofProvider(env.proofServer),
     walletProvider: wallet,
     midnightProvider: wallet,

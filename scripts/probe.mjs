@@ -13,36 +13,35 @@ import { buildWallet, buildProviders, logger } from '../src/midnight/providers.m
 import * as probe from '../contracts/managed/probe/contract/index.js';
 
 const PS_ID = 'probe';
-const witnesses = { secret: ({ privateState }) => [privateState, privateState.secret] };
+// bump() takes no private input at all — the smallest surface there is.
+const witnesses = {};
 
 const wallet = await buildWallet();
-const providers = buildProviders(wallet, { privateStateDir: '.probe-state' });
+const providers = buildProviders(wallet, {
+  privateStateDir: '.probe-state',
+  zkConfigPath: 'contracts/managed/probe',
+});
 
 const compiledContract = CompiledContract.make('probe', probe.Contract).pipe(
   CompiledContract.withWitnesses(witnesses),
   CompiledContract.withCompiledFileAssets('contracts/managed/probe')
 );
 
-const initial = { secret: randomBytes(32) };
 logger.info('deploying probe...');
 const deployed = await deployContract(providers, {
   compiledContract,
   privateStateId: PS_ID,
-  initialPrivateState: initial,
+  initialPrivateState: {},
 });
-logger.info(`deployed at ${deployed.deployTxData.public.contractAddress}`);
+const address = deployed.deployTxData.public.contractAddress;
+logger.info(`probe deployed at ${address}`);
 
-for (const [name, args] of [['bump', []], ['mapPut', [randomBytes(32)]]]) {
-  try {
-    await providers.privateStateProvider.set(PS_ID, initial);
-    const t0 = Date.now();
-    await deployed.callTx[name](...args);
-    console.log(`\n  PASS  ${name} — proved and submitted in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  } catch (e) {
-    const root = e?.cause?.message ?? e.message;
-    console.log(`\n  FAIL  ${name} — ${String(root).slice(0, 150)}`);
-  }
-}
+logger.info('calling bump() — the smallest circuit that touches state...');
+const t0 = Date.now();
+const result = await deployed.callTx.bump();
+logger.info(`bump() SUCCEEDED in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+logger.info(`tx ${result.public.txId ?? '(no id)'}`);
 
-await wallet.stop?.();
+const state = await providers.publicDataProvider.queryContractState(address);
+logger.info(`ledger now: ${probe.ledger(state.data).hits} hit(s)`);
 process.exit(0);
