@@ -12,6 +12,7 @@
   "dependencies": {
     "@noble/hashes": "^2.4.0",
     "framer-motion": "^13.1.1",
+    "ogl": "^1.0.11",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

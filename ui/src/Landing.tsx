@@ -45,26 +45,32 @@ export function Landing({ onPlay }: Props) {
       {/* ---- hero ---- */}
       <header className="land__hero">
         <div className="land__bg">
+          {/* Midnight's palette rather than the stock violet: near-black
+              depths, brushed steel faces, a cool highlight on the hottest
+              edges. Everything else is the component's own defaults. */}
           <AcidSquares
             className="land__canvas"
             color1="#0B0F14"
-            color2="#6E7A88"
-            color3="#C6CFD8"
+            color2="#798797"
+            color3="#CBD5DF"
+            detail="high"
             speed={0.7}
             waveDepth={1}
             zoom={1.3}
-            density={10}
-            glow={1}
-            exposure={2700}
+            density={10.0}
+            glow={1.0}
+            exposure={2300}
             spread={0.3}
             stepSize={0.002}
+            colorShift={0}
             contrast={1}
-            brightness={1}
-            opacity={1}
-            mouseInteraction
+            brightness={1.0}
+            opacity={0.82}
+            mouseInteraction={true}
             mouseStrength={0.1}
             mouseRadius={0.35}
-            grain
+            blur={0}
+            grain={true}
             grainIntensity={0.05}
           />
           <div className="land__scrim" />
