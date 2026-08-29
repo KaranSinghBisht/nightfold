@@ -19,11 +19,16 @@ need tracking software. **The chain is the tracking software.**
 
 Nightfold settles a hand without either player's cards ever reaching a chain.
 
-| At showdown you can | What reaches the ledger |
-|---|---|
-| `revealHand` | Your hand's rank. |
-| `beatOpponent` | That you beat a rank already on the table. Nothing about your own. |
-| `muckHand` | **Nothing.** No cards, no rank, no proof of holdings. |
+A player picks how much to say, every hand. Four rungs, not one trick:
+
+| Circuit | What you say | What reaches the ledger |
+|---|---|---|
+| `revealHand` | "My hand ranks 2,169,397." | The category and every tiebreaker — the whole composition. |
+| `proveAtLeast` | "My hand is at least two pair." | That one bound. Not the rank, not by how much, not what it is made of. |
+| `beatOpponent` | "My hand beats the one you showed." | That the comparison held. Nothing about your own rank. |
+| `muckHand` | "I concede." | **Nothing.** No cards, no rank, no proof of holdings. |
+
+Most on-chain poker has the top rung and nothing else.
 
 Meanwhile the chips come from wherever you already keep them — one player
 staking ETH on Base, the other SOL on Solana, at the same table.

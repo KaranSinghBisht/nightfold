@@ -11,7 +11,7 @@
 
 import { Contract, ledger, pureCircuits } from '../contracts/managed/nightfold-tc/contract/index.js';
 import { cards, showHand } from './witnesses.mjs';
-import { newTable, call, rejects, dealHand, stage, emptyPS } from './testkit.mjs';
+import { newTable, call, rejects, dealHand, stage, emptyPS, bestFive } from './testkit.mjs';
 
 const hv = (h) => pureCircuits.handValue(h);
 let failures = 0;
@@ -113,6 +113,55 @@ console.log('\nbeat — take the pot without showing:\n');
 
   check('when both seats muck the pot splits', Number(winner) === 2,
         'nobody claims it, so nobody takes it');
+}
+
+{
+  // The rung between showing and mucking: prove a floor, publish no rank.
+  const t2 = newTable(Contract);
+  const h = dealHand(t2, pureCircuits, { board, hole0: ALICE, hole1: BOB });
+
+  // Alice holds two pair, aces and kings — 2169397 packed.
+  const aliceRank = Number(pureCircuits.handValue(bestFive(ALICE, board, (x) => pureCircuits.handValue(x)).hand));
+
+  call(t2, 'proveAtLeast', stage(h.seats[0], ALICE, board, (x) => pureCircuits.handValue(x)),
+       h.handId, 0n, board, BigInt(aliceRank));
+
+  const l = view(t2);
+  const k0 = pureCircuits.seatKeyOf(h.handId, 0n);
+
+  check('a proven floor is recorded', l.provenFloors.member(k0));
+  check('and NO rank is published', !l.shownRanks.member(k0),
+        'the ladder rung between showing and mucking');
+  check('the hand is still unresolved', !l.muckedSeats.member(k0) && !l.beatShown.member(k0),
+        'a statement is not an ending');
+
+  // A floor BELOW the true rank is provable — you may always say less.
+  call(t2, 'proveAtLeast', stage(h.seats[1], BOB, board, (x) => pureCircuits.handValue(x)),
+       h.handId, 1n, board, 1n);
+  check('you may prove a weaker floor than you hold', view(t2).provenFloors.member(pureCircuits.seatKeyOf(h.handId, 1n)),
+        'naming a low floor proves less, which is your own loss');
+
+  // A floor ABOVE the true rank is not. Note the number: Bob's Qc 5c makes a
+  // FLUSH on this board (7c 3c 9c are all clubs), which outranks Alice's two
+  // pair — so the unreachable floor has to be above BOB's rank, not Alice's.
+  const bobRank = Number(pureCircuits.handValue(bestFive(BOB, board, (x) => pureCircuits.handValue(x)).hand));
+  check('you cannot prove a floor you do not reach',
+        rejects(() => call(t2, 'proveAtLeast',
+          stage(h.seats[1], BOB, board, (x) => pureCircuits.handValue(x)),
+          h.handId, 1n, board, BigInt(bobRank + 1))),
+        `bob holds ${bobRank}; one more than that is unprovable`);
+
+  // And the seat secret is still required — anyone could otherwise make
+  // statements about a hand they do not hold.
+  check('a stranger cannot prove a floor for your seat',
+        rejects(() => call(t2, 'proveAtLeast', emptyPS(), h.handId, 0n, board, 1n)));
+
+  // Proving a floor still leaves the muck available and still silent.
+  call(t2, 'muckHand', h.seats[0], h.handId, 0n);
+  const after = view(t2);
+  check('a seat that proved a floor can still muck', after.muckedSeats.member(k0));
+  check('and the muck still publishes no rank', !after.shownRanks.member(k0),
+        'the floor said "at least this much" and nothing more');
 }
 
 console.log(failures === 0

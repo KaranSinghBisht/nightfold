@@ -287,3 +287,48 @@
   .arcFoot__stats { justify-content: flex-start; }
   .arcFoot__stat { align-items: flex-start; }
 }
+
+/* ---- the disclosure ladder ------------------------------------------------
+   Four rungs from saying everything to saying nothing. Indented progressively
+   so the shape of the list carries the idea before the words do. */
+
+.arcLadder { margin: 44px auto 0; max-width: 74ch; }
+
+.arcLadder__rung {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 6px 20px;
+  padding: 16px 0;
+  border-top: 1px solid var(--edge);
+}
+.arcLadder__rung:last-of-type { border-bottom: 1px solid var(--edge); }
+
+.arcLadder__step { display: flex; flex-direction: column; gap: 4px; }
+.arcLadder__step b {
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: .7rem;
+  letter-spacing: .04em;
+  color: var(--paper);
+}
+.arcLadder__step em { font-style: normal; font-size: .56rem; letter-spacing: .04em; color: var(--phos-dim); }
+
+.arcLadder__says { font-size: .84rem; line-height: 1.6; color: var(--steel); }
+.arcLadder__leaks {
+  grid-column: 2;
+  font-size: .74rem;
+  line-height: 1.7;
+  color: var(--faint);
+}
+
+/* Each rung says a little less than the one above it. */
+.arcLadder__rung:nth-of-type(2) .arcLadder__step b { color: #A9C4E8; }
+.arcLadder__rung:nth-of-type(3) .arcLadder__step b { color: #7FA8CC; }
+.arcLadder__rung:nth-of-type(4) .arcLadder__step b { color: var(--seal); }
+
+.arcLadder__foot { margin: 18px 0 0; font-size: .78rem; line-height: 1.75; color: var(--dim); }
+
+@media (max-width: 720px) {
+  .arcLadder__rung { grid-template-columns: 1fr; }
+  .arcLadder__leaks { grid-column: 1; }
+}

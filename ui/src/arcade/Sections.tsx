@@ -2,7 +2,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { PixelMark } from './PixelMark';
 import { AsciiCage } from './AsciiCage';
 import { CHAINS, rateOf, usdOf, unitsForChips, usdOfChips, CHIP_USD, SNAPSHOT } from './chains';
-import { TICKER, ENDINGS, PROTOCOL, LANES, STATS } from './copy';
+import { TICKER, ENDINGS, LADDER, PROTOCOL, LANES, STATS } from './copy';
 import './sections.css';
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -98,6 +98,26 @@ export function Protocol() {
               <p className="arcProto__text">{p.text}</p>
             </motion.div>
           ))}
+        </div>
+
+        <div className="arcLadder">
+          <span className="arcSec__kicker" style={{ display: 'block', marginBottom: 14 }}>
+            HOW MUCH TO SAY
+          </span>
+          {LADDER.map((l, i) => (
+            <motion.div className="arcLadder__rung" key={l.circuit} {...reveal(i * 0.3)}>
+              <span className="arcLadder__step">
+                <b>{l.rung}</b>
+                <em>{l.circuit}()</em>
+              </span>
+              <span className="arcLadder__says">“{l.says}”</span>
+              <span className="arcLadder__leaks">{l.leaks}</span>
+            </motion.div>
+          ))}
+          <p className="arcLadder__foot">
+            Four rungs, and a player picks one every hand. Most on-chain poker has
+            the top rung and nothing else.
+          </p>
         </div>
 
         <motion.p className="arcNote" {...reveal(1)}>

@@ -52,6 +52,8 @@ export ledger hands: Map<Bytes<32>, HandSetup>;
 export ledger shownRanks: Map<Bytes<32>, Uint<32>>;
 export ledger muckedSeats: Set<Bytes<32>>;
 export ledger beatShown: Set<Bytes<32>>;
+/** Floors a seat has proven its hand reaches, without publishing the rank. */
+export ledger provenFloors: Map<Bytes<32>, Uint<32>>;
 export ledger settledHands: Set<Bytes<32>>;
 export ledger payoutAttest: Map<Bytes<32>, Bytes<32>>;
 export ledger handsOpened: Counter;
@@ -361,6 +363,45 @@ export circuit beatOpponent(
   // The rank itself never reaches the ledger.
   assert(evaluate5(claimed) > threshold, "hand does not beat the shown rank");
   beatShown.insert(key);
+}
+
+/**
+ * Prove your hand reaches a floor you name, without publishing the rank.
+ *
+ * The rung that was missing. `revealHand` publishes everything about a hand's
+ * composition, `muckHand` publishes nothing, and until now there was no way to
+ * say something true and partial — which is most of what a poker player
+ * actually wants to communicate.
+ *
+ * What it is for, concretely: proving you qualify for a side pot without
+ * showing, and proving after the fact that you were not dumping a strong hand,
+ * which is the evidence a tournament director needs in a collusion dispute and
+ * cannot otherwise get without making you show the table.
+ *
+ * WHY A CALLER-CHOSEN FLOOR IS SAFE HERE, when a caller-chosen threshold was
+ * NF-005 in beatOpponent. There, the threshold decided who won, so naming your
+ * own let a losing hand take the pot. Here the floor only weakens your own
+ * statement: naming a low one proves less, and naming one your hand does not
+ * reach fails. You cannot lie upward, and lying downward costs you.
+ *
+ * Deliberately not a resolution — it does not end the hand and does not
+ * consume the seat's right to show, beat or muck afterwards. It is a
+ * statement, and statements are free to make.
+ */
+export circuit proveAtLeast(
+  handId: Bytes<32>,
+  seat: Uint<8>,
+  board: Vector<5, Card>,
+  floor: Uint<32>
+): [] {
+  const key = authoriseSeat(handId, seat);
+
+  const claimed = verifiedClaim(handId, seat, board);
+
+  // The only thing that escapes: that the hand reaches this floor. Not by how
+  // much, and not what it is made of.
+  assert(evaluate5(claimed) >= floor, "hand does not reach the claimed floor");
+  provenFloors.insert(key, disclose(floor));
 }
 
 /**

@@ -10,6 +10,39 @@ export const TICKER = [
   'ONE CHIP STACK',
 ];
 
+/**
+ * The disclosure ladder — four rungs, not one trick.
+ *
+ * The page used to say "the loser never shows" and stop there, which sold the
+ * contract short: it can say everything, a floor, a comparison, or nothing.
+ */
+export const LADDER = [
+  {
+    rung: 'EVERYTHING',
+    circuit: 'revealHand',
+    says: 'My hand ranks 2,169,397.',
+    leaks: 'The category and every tiebreaker — which is the whole composition.',
+  },
+  {
+    rung: 'A FLOOR',
+    circuit: 'proveAtLeast',
+    says: 'My hand is at least two pair.',
+    leaks: 'That one bound. Not the rank, not by how much, not what it is made of.',
+  },
+  {
+    rung: 'A COMPARISON',
+    circuit: 'beatOpponent',
+    says: 'My hand beats the one you showed.',
+    leaks: 'That the comparison held. Nothing about my own rank.',
+  },
+  {
+    rung: 'NOTHING',
+    circuit: 'muckHand',
+    says: 'I concede.',
+    leaks: 'Nothing at all. No cards, no rank, no proof of holdings.',
+  },
+];
+
 export const ENDINGS = [
   {
     n: '1',
