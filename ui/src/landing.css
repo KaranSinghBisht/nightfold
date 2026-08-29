@@ -29,19 +29,18 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  /* Readability lives here, not in the shader. A soft pool behind the
-     headline column plus a bottom fade into the page ground -- the field
-     itself stays uniform across the full width. */
-  /* Wide and soft so there is no visible edge where the pool ends — a tight
-     radial leaves a seam straight down the middle of the hero. */
+  /* A flat dark veil first, so the corridor reads as texture rather than
+     subject, then a soft pool over the headline column and a fade into the
+     page ground at the seam. */
   background:
+    rgba(11, 15, 20, .70),
     radial-gradient(80% 86% at 16% 50%,
-      rgba(11,15,20,.94) 0%,
-      rgba(11,15,20,.80) 24%,
-      rgba(11,15,20,.46) 48%,
-      rgba(11,15,20,.14) 74%,
+      rgba(11,15,20,.80) 0%,
+      rgba(11,15,20,.60) 26%,
+      rgba(11,15,20,.30) 52%,
+      rgba(11,15,20,.08) 76%,
       transparent 100%),
-    linear-gradient(180deg, rgba(11,15,20,.30) 0%, rgba(11,15,20,0) 28%, rgba(11,15,20,.45) 80%, var(--ground) 100%);
+    linear-gradient(180deg, rgba(11,15,20,.34) 0%, rgba(11,15,20,.06) 30%, rgba(11,15,20,.52) 80%, var(--ground) 100%);
 }
 
 /* ---- nav ------------------------------------------------------------------ */

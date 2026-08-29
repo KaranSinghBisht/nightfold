@@ -52,7 +52,7 @@ export function Landing({ onPlay }: Props) {
             className="land__canvas"
             color1="#0B0F14"
             color2="#798797"
-            color3="#CBD5DF"
+            color3="#AEB9C6"
             detail="high"
             speed={0.7}
             waveDepth={1}
@@ -65,7 +65,7 @@ export function Landing({ onPlay }: Props) {
             colorShift={0}
             contrast={1}
             brightness={1.0}
-            opacity={0.82}
+            opacity={0.55}
             mouseInteraction={true}
             mouseStrength={0.1}
             mouseRadius={0.35}
