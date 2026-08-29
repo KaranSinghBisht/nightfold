@@ -139,66 +139,93 @@
 
 .arcCage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 60px; align-items: center; }
 
-.arcCage__panel {
-  position: relative;
-  aspect-ratio: 6 / 5;
-  border: 3px solid var(--phos);
-  background:
-    repeating-linear-gradient(90deg, rgba(92, 155, 255, .08) 0 1px, transparent 1px 46px),
-    repeating-linear-gradient(0deg, rgba(92, 155, 255, .08) 0 1px, transparent 1px 46px),
-    #070A0E;
-  box-shadow: 0 0 40px rgba(92, 155, 255, .16), inset 0 0 60px rgba(92, 155, 255, .05);
+/* The cage, as a ledger. Same bezel language as the hero monitor so the page
+   reads as one machine, and every figure is at the contracts' real rate. */
+
+.arcCage__win {
+  border: 10px solid #050709;
+  outline: 1px solid var(--edge-hot);
+  background: var(--panel);
+  box-shadow:
+    0 0 0 1px rgba(92, 155, 255, .08),
+    0 26px 70px rgba(0, 0, 0, .74),
+    inset 0 0 60px rgba(92, 155, 255, .04);
+}
+
+.arcCage__head {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 34px;
-  padding: 30px;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--edge);
+  font-size: .56rem;
+  letter-spacing: .14em;
 }
-.arcCage__proof { position: absolute; top: 14px; right: 16px; font-size: .5rem; letter-spacing: .1em; color: var(--faint); }
-.arcCage__addr { position: absolute; bottom: 14px; left: 16px; font-size: .5rem; letter-spacing: .06em; color: var(--faint); }
+.arcCage__headName { color: var(--paper); }
+.arcCage__headProof { color: var(--phos-dim); }
 
-.arcCage__ring { position: relative; display: grid; place-items: center; width: 150px; height: 150px; }
-.arcCage__ringIn {
-  position: absolute;
-  inset: 0;
-  border: 2px dashed var(--phos);
-  border-radius: 50%;
-  opacity: .8;
-}
-.arcCage__arc {
-  position: absolute;
-  inset: -12px;
-  border: 2px solid transparent;
-  border-top-color: var(--steel);
-  border-left-color: var(--steel);
-  border-radius: 50%;
-}
-.arcCage__chips {
-  display: grid;
-  place-items: center;
-  width: 104px;
-  height: 104px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 40%, rgba(92, 155, 255, .3), rgba(92, 155, 255, .07));
-  font-family: var(--pixel);
-  font-size: .78rem;
-  color: var(--phos);
-  text-shadow: 0 0 14px rgba(92, 155, 255, .8);
-}
-
-.arcCage__status {
-  width: 100%;
-  max-width: 280px;
-  padding: 14px;
-  border: 1px solid var(--edge-hot);
-  text-align: center;
+.arcCage__ledger {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  padding: 26px 22px 22px;
+  background:
+    radial-gradient(120% 120% at 50% 30%, rgba(92, 155, 255, .05), transparent 64%),
+    #05080B;
 }
-.arcCage__statusCap { font-size: .52rem; letter-spacing: .18em; color: var(--faint); }
-.arcCage__statusVal { font-size: .62rem; letter-spacing: .1em; color: var(--phos); }
+
+.arcCage__leg {
+  font-size: .52rem;
+  letter-spacing: .2em;
+  color: var(--faint);
+}
+.arcCage__leg + .arcCage__row { margin-top: -2px; }
+
+.arcCage__row {
+  display: grid;
+  grid-template-columns: 92px 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, .015);
+  font-size: .66rem;
+  letter-spacing: .06em;
+}
+
+.arcCage__chain { display: flex; align-items: center; gap: 8px; font-size: .58rem; letter-spacing: .12em; }
+.arcCage__pip { width: 7px; height: 7px; flex: none; background: currentColor; }
+.arcCage__chain--base { color: var(--base-blue); }
+.arcCage__chain--sol { color: var(--sol-purple); }
+
+.arcCage__from { color: var(--dim); }
+.arcCage__arrow { color: var(--faint); letter-spacing: -.1em; }
+.arcCage__to { color: var(--paper); text-align: right; }
+
+/* One stack, whatever it was bought with — the point of a cage. */
+.arcCage__table {
+  margin: 6px 0;
+  padding: 15px;
+  border: 1px solid var(--phos);
+  background: rgba(92, 155, 255, .07);
+  box-shadow: inset 0 0 26px rgba(92, 155, 255, .08);
+  text-align: center;
+  font-family: var(--pixel);
+  font-size: .74rem;
+  letter-spacing: .04em;
+  color: var(--phos);
+  text-shadow: 0 0 14px rgba(92, 155, 255, .6);
+}
+
+.arcCage__punch {
+  margin: 8px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--edge);
+  font-size: .72rem;
+  line-height: 1.7;
+  color: var(--paper);
+}
 
 .arcCage__body { display: flex; flex-direction: column; gap: 22px; }
 .arcCage__bullets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }

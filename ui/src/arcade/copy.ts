@@ -61,6 +61,19 @@ export const CAGE_BULLETS = [
   'CASH OUT ON EITHER CHAIN',
 ];
 
+/* The cage ledger, at the rates the contracts actually use:
+   1 ETH = 20,000 chips and 1 SOL = 100 chips (src/evm/cage.test.mjs). Two
+   buy-ins of 1,000 make a 2,000 chip table; Alice leaves with 1,850 of it. */
+export const CAGE_LEDGER = {
+  in: [
+    { chain: 'BASE', tone: 'base', from: '0.05 ETH', to: '1,000 CHIPS' },
+    { chain: 'SOLANA', tone: 'sol', from: '10 SOL', to: '1,000 CHIPS' },
+  ],
+  table: '2,000 CHIPS IN PLAY',
+  out: [{ chain: 'SOLANA', tone: 'sol', from: '1,850 CHIPS', to: '18.5 SOL' }],
+  punchline: 'Alice bought in on Base. She left on Solana.',
+};
+
 export const LANES = [
   {
     name: 'BASE + SOLANA',

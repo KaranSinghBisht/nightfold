@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { PixelMark } from './PixelMark';
+import { CageWindow } from './CageWindow';
 import { TICKER, ENDINGS, PROTOCOL, CAGE_BULLETS, LANES, STATS } from './copy';
 import './sections.css';
 
@@ -115,18 +116,8 @@ export function Cage() {
     <section className="arcSec" id="cage">
       <div className="arc__inner">
         <div className="arcCage">
-          <motion.div className="arcCage__panel" {...reveal()} aria-hidden>
-            <span className="arcCage__proof">CONSERVATION: PROVEN</span>
-            <div className="arcCage__ring">
-              <span className="arcCage__ringIn" />
-              <span className="arcCage__arc" />
-              <span className="arcCage__chips">CHIPS</span>
-            </div>
-            <div className="arcCage__status">
-              <span className="arcCage__statusCap">CAGE STATUS</span>
-              <span className="arcCage__statusVal">● BUY-IN OPEN</span>
-            </div>
-            <span className="arcCage__addr">0x9f2c...4d81</span>
+          <motion.div {...reveal()}>
+            <CageWindow />
           </motion.div>
 
           <motion.div className="arcCage__body" {...reveal(1)}>
