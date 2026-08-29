@@ -1,0 +1,56 @@
+.card {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  font-family: var(--display);
+  line-height: 1;
+  user-select: none;
+  animation: deal .34s cubic-bezier(.2, .8, .3, 1) backwards;
+  box-shadow: 0 2px 6px var(--shadow);
+}
+
+.card--sm { width: 34px; height: 48px; font-size: .95rem; }
+.card--md { width: 52px; height: 74px; font-size: 1.35rem; }
+.card--lg { width: 66px; height: 94px; font-size: 1.7rem; }
+
+/* face up — card stock */
+.card--up {
+  background: var(--ink);
+  color: #12171c;
+  border-color: var(--ink);
+  flex-direction: column;
+}
+.card--up.card--red { color: #a32b2b; }
+
+.card__rank { font-weight: 400; }
+.card__suit { font-size: .78em; opacity: .9; margin-top: -.1em; }
+
+/* face down — felt with a woven back */
+.card--down {
+  background:
+    repeating-linear-gradient(45deg, transparent 0 3px, rgba(0, 0, 0, .22) 3px 4px),
+    repeating-linear-gradient(-45deg, transparent 0 3px, rgba(0, 0, 0, .16) 3px 4px),
+    var(--felt);
+  border-color: var(--felt-deep);
+}
+
+/* mucked — the hand is gone for good, so it reads as retired, not pending */
+.card--mucked {
+  filter: saturate(.35) brightness(.72);
+  border-color: var(--line);
+  box-shadow: none;
+}
+.card--mucked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  background: linear-gradient(160deg, transparent 40%, rgba(140, 58, 58, .28));
+}
+
+@keyframes deal {
+  from { opacity: 0; transform: translateY(-14px) rotate(-4deg) scale(.94); }
+  to   { opacity: 1; transform: none; }
+}

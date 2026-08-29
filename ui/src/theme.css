@@ -1,0 +1,73 @@
+/* Nightfold — a card room at night, not a casino.
+   Dark-first: the subject is night, so :root carries the dark palette and the
+   light theme is the override. */
+
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Public+Sans:ital,wght@0,300..800;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  --ground:    #0B0F14;
+  --surface:   #131A21;
+  --surface-2: #1A232C;
+  --line:      #26313C;
+  --felt:      #1F4B44;
+  --felt-deep: #16332F;
+  --brass:     #C9A227;
+  --brass-dim: #8F7419;
+  --sealed:    #8C3A3A;
+  --ink:       #E8E6E1;
+  --ink-dim:   #A8B2BC;
+  --muted:     #8A949E;
+  --shadow:    rgba(0, 0, 0, .5);
+
+  --base-blue: #4C82F7;
+  --sol-purple: #9945FF;
+
+  --display: 'Instrument Serif', Georgia, serif;
+  --body: 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+:root[data-theme='light'] {
+  --ground:    #EFEDE6;
+  --surface:   #FAF9F5;
+  --surface-2: #E7E3D9;
+  --line:      #D5D0C4;
+  --felt:      #2E6155;
+  --felt-deep: #D9E5E0;
+  --brass:     #8A6D12;
+  --brass-dim: #B39528;
+  --sealed:    #973E3E;
+  --ink:       #151A1D;
+  --ink-dim:   #3B454D;
+  --muted:     #68717A;
+  --shadow:    rgba(20, 24, 28, .14);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-weight: 350;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: .68rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

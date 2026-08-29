@@ -18,10 +18,11 @@
     "check:rank": "node src/handrank.check.mjs",
     "check:fuzz": "node src/handrank.fuzz.mjs 20000",
     "check:hand": "node src/hand.e2e.mjs",
-    "check": "npm run typecheck && npm run check:rank && npm run check:fuzz && npm run check:hand && npm run check:escrow && npm run check:crosschain",
+    "check": "npm run typecheck && npm run check:rank && npm run check:fuzz && npm run check:hand && npm run check:muck && npm run check:escrow && npm run check:crosschain",
     "anvil": "anvil --port 8545 --silent",
     "check:escrow": "node src/evm/escrow.test.mjs",
-    "check:crosschain": "node src/crosschain.e2e.mjs"
+    "check:crosschain": "node src/crosschain.e2e.mjs",
+    "check:muck": "node src/muck.e2e.mjs"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "^0.16.0",

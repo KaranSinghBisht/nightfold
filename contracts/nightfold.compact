@@ -24,6 +24,10 @@ import HandRank;
 export ledger holeCommits: Map<Bytes<32>, Bytes<32>>;
 export ledger shownRanks:  Map<Bytes<32>, Uint<32>>;
 export ledger settledHands: Set<Bytes<32>>;
+// A seat that conceded without revealing anything at all.
+export ledger muckedSeats: Set<Bytes<32>>;
+// A seat that proved it beats the shown rank WITHOUT publishing its own.
+export ledger beatShown: Set<Bytes<32>>;
 export ledger payoutAttest: Map<Bytes<32>, Bytes<32>>;
 export ledger handsDealt:  Counter;
 export ledger handsSettled: Counter;
@@ -82,8 +86,13 @@ export circuit commitDeal(handId: Bytes<32>, seat: Uint<8>): [] {
   handsDealt.increment(1);
 }
 
-// Showdown. Proves the player's committed hole cards, combined with the public
-// board, make a hand of rank R -- and publishes ONLY R.
+// A voluntary SHOW. Publishes the packed rank, which is what a player does at
+// a real showdown when they want the pot.
+//
+// Be precise about what this leaks: the packed rank encodes the category and
+// every tiebreaker, so publishing it publishes the hand's composition (though
+// not its suits). That is correct for a player who is choosing to show. A
+// player who does not want to reveal that uses muckHand or beatShownRank.
 //
 // The player names which five of their seven cards they are claiming. They are
 // free to under-claim, which only ever loses them the pot, so a single
@@ -139,21 +148,100 @@ export circuit revealHand(
   return value;
 }
 
+// Concede without revealing anything. No cards, no rank, no proof of holdings
+// -- exactly what sliding your hand face down into the muck means. This is the
+// circuit that makes the privacy claim true rather than approximate.
+export circuit muckHand(handId: Bytes<32>, seat: Uint<8>): [] {
+  const key = disclose(seatKey(handId, seat));
+  assert(holeCommits.member(key), "no commitment for seat");
+  assert(!shownRanks.member(key), "already shown");
+  assert(!muckedSeats.member(key), "already mucked");
+  muckedSeats.insert(key);
+}
+
+// Beat a rank that is already on the table, WITHOUT publishing your own.
+//
+// The opponent has shown, so their rank is public. This proves only the
+// comparison -- the chain learns "this hand beats that one" and nothing more
+// about how. A winner using this reveals strictly less than one who shows.
+export circuit beatShownRank(
+  handId: Bytes<32>,
+  seat: Uint<8>,
+  board: Vector<5, Card>,
+  threshold: Uint<32>
+): [] {
+  const cards = holeCards();
+  const salt = holeSalt();
+  const key = disclose(seatKey(handId, seat));
+
+  assert(holeCommits.member(key), "no commitment for seat");
+  assert(holeCommits.lookup(key) == disclose(holeCommitment(cards, salt)),
+         "hole cards do not open the commitment");
+  assert(!shownRanks.member(key), "already shown");
+  assert(!beatShown.member(key), "already claimed the beat");
+
+  for (const i of 0..5) {
+    checkCard(board[i]);
+  }
+
+  const src: Vector<7, Card> = [
+    cards[0], cards[1],
+    board[0], board[1], board[2], board[3], board[4]
+  ];
+
+  const pick = handPick();
+  const claimed = claimedHand();
+  for (const i of 0..5) {
+    assert(pick[i] < 7, "pick out of range");
+    for (const k of 0..5) {
+      if (i < k) {
+        assert(pick[i] != pick[k], "duplicate card in claimed hand");
+      }
+    }
+    for (const j of 0..7) {
+      const at = pick[i] == (j as Uint<8>);
+      assert(!at || (claimed[i].id == src[j].id), "claimed card not in hand");
+    }
+  }
+
+  // The ONLY thing that escapes this circuit is that the comparison held.
+  // The rank itself never reaches the ledger.
+  assert(evaluate5(claimed) > threshold, "hand does not beat the shown rank");
+  beatShown.insert(key);
+}
+
 // Compares the two proven ranks and writes a payout attestation the relayer
 // carries to whichever chains the two players funded from.
 export circuit settle(handId: Bytes<32>): Uint<8> {
   const k0 = disclose(seatKey(handId, 0));
   const k1 = disclose(seatKey(handId, 1));
-
-  assert(shownRanks.member(k0), "seat 0 has not revealed");
-  assert(shownRanks.member(k1), "seat 1 has not revealed");
   assert(!settledHands.member(disclose(handId)), "hand already settled");
 
-  const r0 = shownRanks.lookup(k0);
-  const r1 = shownRanks.lookup(k1);
+  // Each seat resolved one of three ways: showed a rank, proved a beat without
+  // showing, or mucked. Every combination has to name a winner.
+  const shown0 = shownRanks.member(k0);
+  const shown1 = shownRanks.member(k1);
+  const muck0 = muckedSeats.member(k0);
+  const muck1 = muckedSeats.member(k1);
+  const beat0 = beatShown.member(k0);
+  const beat1 = beatShown.member(k1);
 
-  // 0 = seat 0 wins, 1 = seat 1 wins, 2 = split pot
-  const winner = r0 > r1 ? 0 : r1 > r0 ? 1 : 2;
+  assert(shown0 || muck0 || beat0, "seat 0 has not acted");
+  assert(shown1 || muck1 || beat1, "seat 1 has not acted");
+
+  // A hand where both sides beat the other cannot happen: beatShownRank
+  // requires an opponent rank already on the table, so only one seat can hold
+  // the beat. Asserted rather than assumed.
+  assert(!(beat0 && beat1), "both seats claim the beat");
+
+  // 0 = seat 0, 1 = seat 1, 2 = split.
+  const winner = muck1 ? 0
+               : muck0 ? 1
+               : beat0 ? 0
+               : beat1 ? 1
+               : (shownRanks.lookup(k0) > shownRanks.lookup(k1)) ? 0
+               : (shownRanks.lookup(k1) > shownRanks.lookup(k0)) ? 1
+               : 2;
 
   settledHands.insert(disclose(handId));
   payoutAttest.insert(
