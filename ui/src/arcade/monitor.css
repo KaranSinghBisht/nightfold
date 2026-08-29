@@ -10,9 +10,9 @@
   outline: 1px solid var(--edge-hot);
   background: var(--panel);
   box-shadow:
-    0 0 0 1px rgba(255, 182, 39, .08),
+    0 0 0 1px rgba(92, 155, 255, .08),
     0 34px 90px rgba(0, 0, 0, .8),
-    inset 0 0 70px rgba(255, 182, 39, .04);
+    inset 0 0 70px rgba(92, 155, 255, .04);
 }
 
 .arcMon__head {
@@ -33,7 +33,7 @@
   background: #4ADE80;
   box-shadow: 0 0 9px rgba(74, 222, 128, .9);
 }
-.arcMon__pot { color: var(--phos); text-shadow: 0 0 12px rgba(255, 182, 39, .6); }
+.arcMon__pot { color: var(--phos); text-shadow: 0 0 12px rgba(92, 155, 255, .6); }
 
 .arcMon__screen {
   display: grid;
@@ -43,7 +43,7 @@
   padding: 40px 22px 20px;
   min-height: 300px;
   background:
-    radial-gradient(120% 120% at 50% 40%, rgba(255, 182, 39, .05), transparent 62%),
+    radial-gradient(120% 120% at 50% 40%, rgba(92, 155, 255, .05), transparent 62%),
     #05080B;
 }
 

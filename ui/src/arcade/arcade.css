@@ -1,5 +1,6 @@
-/* Nightfold — amber phosphor.
-   A single committed visual world: a monochrome CRT terminal in a card room.
+/* Nightfold — Midnight blue phosphor.
+   A single committed visual world: a CRT terminal in a card room, lit in
+   Midnight's own signal blue against its near-black.
    The scope sets every colour it uses explicitly, so it holds regardless of the
    host theme the table page runs under. */
 
@@ -10,17 +11,19 @@
   --edge:      #1B2530;
   --edge-hot:  #31414F;
 
-  --phos:      #FFB627;
-  --phos-dim:  #A8761A;
-  --phos-wash: rgba(255, 182, 39, .14);
+  --phos:      #5C9BFF;
+  --phos-dim:  #3D6FC4;
+  --phos-wash: rgba(92, 155, 255, .14);
 
-  --steel:     #86C7DB;
-  --steel-dim: #4E7F91;
+  /* Pale ice rather than a second blue — Midnight's identity is black, white
+     and one blue, so the secondary stays out of the signal's hue. */
+  --steel:     #C6D6E8;
+  --steel-dim: #8195A9;
 
   --seal:      #FF5252;
   --seal-dim:  #8C2F2F;
 
-  --paper:     #F2EFE7;
+  --paper:     #EEF3F8;
   --dim:       #8C99A6;
   --faint:     #5A6874;
 
@@ -69,19 +72,19 @@
   font-size: clamp(1.15rem, 2.6vw, 1.9rem);
   letter-spacing: .04em;
   color: var(--paper);
-  text-shadow: 0 0 18px rgba(255, 182, 39, .34);
+  text-shadow: 0 0 18px rgba(92, 155, 255, .34);
   margin: 0;
 }
 .arc__h2--phos {
   color: var(--phos);
-  text-shadow: 0 0 10px rgba(255, 182, 39, .6), 0 0 40px rgba(255, 182, 39, .3);
+  text-shadow: 0 0 10px rgba(92, 155, 255, .6), 0 0 40px rgba(92, 155, 255, .3);
 }
 
 .arc__rule {
   width: 84px;
   height: 3px;
   background: var(--phos);
-  box-shadow: 0 0 14px rgba(255, 182, 39, .7);
+  box-shadow: 0 0 14px rgba(92, 155, 255, .7);
 }
 
 .arc__lede {
@@ -102,23 +105,23 @@
   padding: 16px 26px;
   border: 2px solid var(--phos);
   background: var(--phos);
-  color: #10151A;
+  color: #06090C;
   cursor: pointer;
-  box-shadow: 5px 5px 0 rgba(255, 182, 39, .22);
+  box-shadow: 5px 5px 0 rgba(92, 155, 255, .22);
   transition: box-shadow .16s ease, transform .16s ease, background .16s ease;
 }
-.arc__btn:hover { box-shadow: 7px 7px 0 rgba(255, 182, 39, .34); transform: translate(-1px, -1px); }
-.arc__btn:active { box-shadow: 2px 2px 0 rgba(255, 182, 39, .22); transform: translate(2px, 2px); }
+.arc__btn:hover { box-shadow: 7px 7px 0 rgba(92, 155, 255, .34); transform: translate(-1px, -1px); }
+.arc__btn:active { box-shadow: 2px 2px 0 rgba(92, 155, 255, .22); transform: translate(2px, 2px); }
 
 .arc__btn--ghost {
   background: transparent;
   color: var(--steel);
   border-color: var(--steel);
-  box-shadow: 5px 5px 0 rgba(134, 199, 219, .18);
+  box-shadow: 5px 5px 0 rgba(198, 214, 232, .18);
 }
 .arc__btn--ghost:hover {
-  background: rgba(134, 199, 219, .1);
-  box-shadow: 7px 7px 0 rgba(134, 199, 219, .3);
+  background: rgba(198, 214, 232, .1);
+  box-shadow: 7px 7px 0 rgba(198, 214, 232, .3);
 }
 
 /* ---- nav ------------------------------------------------------------------ */
@@ -134,11 +137,11 @@
   border: 1px solid var(--edge-hot);
   background: rgba(6, 8, 11, .74);
   backdrop-filter: blur(9px);
-  box-shadow: inset 0 0 40px rgba(255, 182, 39, .05);
+  box-shadow: inset 0 0 40px rgba(92, 155, 255, .05);
 }
 
 .arc__brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }
-.arc__brandMark { color: var(--phos); filter: drop-shadow(0 0 6px rgba(255, 182, 39, .8)); }
+.arc__brandMark { color: var(--phos); filter: drop-shadow(0 0 6px rgba(92, 155, 255, .8)); }
 .arc__brandText { display: flex; flex-direction: column; gap: 4px; }
 .arc__brandName {
   font-family: var(--pixel);
@@ -161,9 +164,9 @@
   color: var(--dim);
   text-decoration: none;
 }
-.arc__navLinks a:hover { color: var(--phos); text-shadow: 0 0 12px rgba(255, 182, 39, .7); }
+.arc__navLinks a:hover { color: var(--phos); text-shadow: 0 0 12px rgba(92, 155, 255, .7); }
 
-.arc__navBtn { padding: 12px 18px; font-size: .62rem; box-shadow: 3px 3px 0 rgba(255, 182, 39, .22); }
+.arc__navBtn { padding: 12px 18px; font-size: .62rem; box-shadow: 3px 3px 0 rgba(92, 155, 255, .22); }
 
 /* ---- hero ----------------------------------------------------------------- */
 
@@ -174,7 +177,7 @@
 }
 
 .arc__field { position: absolute; inset: 0 0 -140px; z-index: -2; overflow: hidden; }
-.arc__canvas { position: absolute; inset: 0; opacity: .30; }
+.arc__canvas { position: absolute; inset: 0; opacity: .5; }
 
 /* Holds the type legible over a live shader and feathers the tube into the
    page below, so the hero has no visible seam. */
@@ -183,6 +186,9 @@
   inset: 0;
   z-index: -1;
   background:
+    /* A flat black veil first — the tube should sit behind the page, not
+       compete with it. One value, easy to tune. */
+    rgba(0, 0, 0, .55),
     radial-gradient(62% 52% at 50% 40%,
       rgba(6, 8, 11, .86) 0%, rgba(6, 8, 11, .7) 44%, rgba(6, 8, 11, .3) 74%, transparent 100%),
     linear-gradient(180deg, rgba(6, 8, 11, .78) 0%, rgba(6, 8, 11, .3) 20%, rgba(6, 8, 11, .42) 60%, var(--bg) 97%);
@@ -224,16 +230,16 @@
 .arc__t1 {
   color: var(--paper);
   text-shadow:
-    0 0 7px rgba(255, 182, 39, .5),
-    0 0 30px rgba(255, 182, 39, .32),
-    0 0 72px rgba(255, 182, 39, .16);
+    0 0 7px rgba(92, 155, 255, .5),
+    0 0 30px rgba(92, 155, 255, .32),
+    0 0 72px rgba(92, 155, 255, .16);
 }
 .arc__t2 {
   color: var(--phos);
   text-shadow:
-    0 0 9px rgba(255, 182, 39, .85),
-    0 0 36px rgba(255, 182, 39, .48),
-    0 0 90px rgba(255, 182, 39, .24);
+    0 0 9px rgba(92, 155, 255, .85),
+    0 0 36px rgba(92, 155, 255, .48),
+    0 0 90px rgba(92, 155, 255, .24);
 }
 
 .arc__tag {
@@ -241,7 +247,7 @@
   font-size: clamp(.6rem, 1.5vw, .88rem);
   letter-spacing: .1em;
   color: var(--steel);
-  text-shadow: 0 0 16px rgba(134, 199, 219, .5);
+  text-shadow: 0 0 16px rgba(198, 214, 232, .5);
 }
 
 .arc__pitch {

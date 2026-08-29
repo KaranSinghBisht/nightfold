@@ -27,7 +27,7 @@
   color: var(--dim);
   white-space: nowrap;
 }
-.arcTick__pip { width: 6px; height: 6px; background: var(--phos); box-shadow: 0 0 8px rgba(255, 182, 39, .8); }
+.arcTick__pip { width: 6px; height: 6px; background: var(--phos); box-shadow: 0 0 8px rgba(92, 155, 255, .8); }
 
 /* ---- section shell --------------------------------------------------------- */
 
@@ -61,7 +61,7 @@
   border: 3px solid var(--steel);
   background: #070A0E;
   color: var(--steel);
-  box-shadow: 0 0 24px rgba(134, 199, 219, .18);
+  box-shadow: 0 0 24px rgba(198, 214, 232, .18);
 }
 .arcEnd__n {
   position: absolute;
@@ -76,7 +76,7 @@
   background: var(--steel);
   color: #06090C;
 }
-.arcEnd__item--best .arcEnd__frame { border-color: var(--phos); color: var(--phos); box-shadow: 0 0 30px rgba(255, 182, 39, .3); }
+.arcEnd__item--best .arcEnd__frame { border-color: var(--phos); color: var(--phos); box-shadow: 0 0 30px rgba(92, 155, 255, .3); }
 .arcEnd__item--best .arcEnd__n { background: var(--phos); }
 
 .arcEnd__name {
@@ -144,10 +144,10 @@
   aspect-ratio: 6 / 5;
   border: 3px solid var(--phos);
   background:
-    repeating-linear-gradient(90deg, rgba(255, 182, 39, .08) 0 1px, transparent 1px 46px),
-    repeating-linear-gradient(0deg, rgba(255, 182, 39, .08) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(90deg, rgba(92, 155, 255, .08) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(0deg, rgba(92, 155, 255, .08) 0 1px, transparent 1px 46px),
     #070A0E;
-  box-shadow: 0 0 40px rgba(255, 182, 39, .16), inset 0 0 60px rgba(255, 182, 39, .05);
+  box-shadow: 0 0 40px rgba(92, 155, 255, .16), inset 0 0 60px rgba(92, 155, 255, .05);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -180,11 +180,11 @@
   width: 104px;
   height: 104px;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 40%, rgba(255, 182, 39, .3), rgba(255, 182, 39, .07));
+  background: radial-gradient(circle at 50% 40%, rgba(92, 155, 255, .3), rgba(92, 155, 255, .07));
   font-family: var(--pixel);
   font-size: .78rem;
   color: var(--phos);
-  text-shadow: 0 0 14px rgba(255, 182, 39, .8);
+  text-shadow: 0 0 14px rgba(92, 155, 255, .8);
 }
 
 .arcCage__status {
@@ -226,7 +226,7 @@
 .arcFoot__text { font-size: .76rem; line-height: 1.8; color: var(--dim); margin: 0; max-width: 62ch; }
 .arcFoot__stats { display: flex; gap: 54px; }
 .arcFoot__stat { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
-.arcFoot__val { font-family: var(--pixel); font-weight: 700; font-size: 1.5rem; color: var(--phos); text-shadow: 0 0 16px rgba(255, 182, 39, .6); }
+.arcFoot__val { font-family: var(--pixel); font-weight: 700; font-size: 1.5rem; color: var(--phos); text-shadow: 0 0 16px rgba(92, 155, 255, .6); }
 .arcFoot__cap { font-size: .5rem; letter-spacing: .14em; color: var(--faint); }
 
 .arcFoot__end {

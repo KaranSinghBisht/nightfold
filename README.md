@@ -195,3 +195,7 @@ Notes that cost us time, so they don't cost you any:
 ## Licence
 
 MIT.
+
+Card art is Kenney's [Playing Cards Pack](https://kenney.nl/assets/playing-cards-pack),
+released CC0 and cropped to the 42x60 card. The hero background is React Bits'
+`CRTWarp`, retuned to Midnight's blue.

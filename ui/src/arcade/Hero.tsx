@@ -21,14 +21,15 @@ export function Hero({ onPlay }: Props) {
   return (
     <header className="arc__hero">
       <div className="arc__field">
-        {/* Amber phosphor rather than the stock violet, and turned right down:
+        {/* Midnight blue rather than the stock violet, slowed right down and
+            turned down hard:
             the tube is the room the type sits in, never the subject. The final
             level is set by .arc__canvas opacity so it is one dial to tune. */}
         <CRTWarp
           className="arc__canvas"
-          color="#FFB627"
+          color="#5C9BFF"
           backgroundColor="#06080B"
-          speed={0.34}
+          speed={0.14}
           curvature={0.34}
           scanlineStrength={0.55}
           scanlineFrequency={260}
