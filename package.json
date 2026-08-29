@@ -42,7 +42,8 @@
     "check:solana": "node src/solana/watcher.test.mjs",
     "check:table": "node src/evm/table.test.mjs",
     "check:stack": "node src/privatestack.e2e.mjs",
-    "check:loop": "node src/loop.e2e.mjs"
+    "check:loop": "node src/loop.e2e.mjs",
+    "demo": "node scripts/demo.mjs"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.16.0",
