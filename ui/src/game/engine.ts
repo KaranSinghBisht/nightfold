@@ -42,6 +42,16 @@ export interface Engine {
    * (RA-015).
    */
   hole: [number[], number[]];
+  /**
+   * What each seat CHOSE to show. Null until they do.
+   *
+   * NFV-011: view() used to render the opponent from the deliberately-empty
+   * hole slot, and toCard(undefined) coerced to card zero — so a shown hand
+   * displayed as `2s 2s` while the rank published beside it came from the real
+   * cards. Showing is a public act, so what was shown gets a public home
+   * rather than being reconstructed from a private one.
+   */
+  revealedHole: [number[] | null, number[] | null];
   board: number[];
   /** which chain each seat bought its chips on */
   seatChains: [ChainId, ChainId];
@@ -86,6 +96,7 @@ export function startHand(
     betting: newHand({ stackA: stacks[0], stackB: stacks[1], button }),
     seatChains,
     shown: [null, null],
+    revealedHole: [null, null],
     winner: null,
     deckCommitment: shortHex(d.deckCommitment, 16),
     events: [
@@ -144,16 +155,20 @@ export function resolveShowdown(e: Engine, seat: 0 | 1, choice: Showdown, rankOf
   shown[seat] = choice;
   const events = [...e.events];
 
+  const revealedHole: [number[] | null, number[] | null] = [...e.revealedHole] as never;
+
   if (choice === 'show') {
     // Seat 1's cards live in the vault; showing is the one path that opens it.
     const own = seat === 0 ? e.hole[0] : (reveal(e.handId) ?? []);
+    // The same cards the rank is computed from, so the two cannot disagree.
+    revealedHole[seat] = own;
     const rank = rankOf([...own, ...e.board]);
     events.push({ chain: 'midnight', label: 'revealHand', detail: `seat ${seat} shows → rank ${rank}` });
   } else {
     events.push({ chain: 'midnight', label: 'muckHand', detail: `seat ${seat} concedes`, opaque: true, masked: ['cards', 'rank'] });
   }
 
-  const next = { ...e, shown, events };
+  const next = { ...e, shown, revealedHole, events };
 
   // A muck is a concession. The opponent takes the pot and never has to show —
   // which is the cheapest privacy in poker and the whole point of the feature.
@@ -202,6 +217,16 @@ function settle(e: Engine, note?: string): Engine {
   return { ...e, betting: paid, events };
 }
 
+/**
+ * The cards a seat may render: your own from the engine, an opponent's only
+ * from what they published when they showed.
+ */
+function holeFor(e: Engine, i: 0 | 1, isYou: boolean): [Card, Card] | undefined {
+  const ids = isYou ? e.hole[i] : e.revealedHole[i];
+  if (!ids || ids.length < 2) return undefined;
+  return [toCard(ids[0]), toCard(ids[1])];
+}
+
 /** What a given seat is allowed to see. The opponent's cards are ABSENT. */
 export function view(e: Engine, you: 0 | 1): { seats: [Seat, Seat]; board: Card[] } {
   const names: [string, string] = ['Alice', 'Bob'];
@@ -224,7 +249,7 @@ export function view(e: Engine, you: 0 | 1): { seats: [Seat, Seat]; board: Card[
       name: names[i],
       chain: chains[i],
       stake: String(e.betting.stacks[i]),
-      hole: canSee ? ([toCard(e.hole[i][0]), toCard(e.hole[i][1])] as [Card, Card]) : undefined,
+      hole: canSee ? holeFor(e, i, isYou) : undefined,
       status,
     } satisfies Seat;
   }) as [Seat, Seat];

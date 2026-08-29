@@ -68,6 +68,20 @@ witness holeSalt(): Bytes<32>;
 
 /** Hides the board commitment. See boardCommitment for why it must exist. */
 witness boardSalt(): Bytes<32>;
+
+/**
+ * The whole deal, known only to the dealer when it opens the hand.
+ *
+ * NFV-003: the contract checked that each seat's SEVEN cards were distinct,
+ * which says nothing about the other seat. Both players settled a hand while
+ * holding the same ace of spades, and every proof verified. Distinctness has
+ * to be global or it is not distinctness.
+ *
+ * Order is hole0, hole0, hole1, hole1, then the five board cards.
+ */
+witness dealtCards(): Vector<9, Card>;
+/** hole0 salt, hole1 salt, board salt — so openHand can check every opening. */
+witness dealSalts(): Vector<3, Bytes<32>>;
 // The five cards being claimed, and where each sits among the seven.
 witness claimedHand(): Vector<5, Card>;
 witness handPick(): Vector<5, Uint<8>>;
@@ -252,6 +266,35 @@ export circuit openHand(
   assert(!hands.member(disclose(handId)), "hand already open");
   assert(disclose(seat0Key) != disclose(seat1Key), "seats must differ");
   assert(disclose(hole0Commit) != disclose(hole1Commit), "seats must hold different cards");
+
+  // NFV-003: prove the deal is a possible one before anybody acts.
+  //
+  // The dealer knows all nine cards here and nobody else does, so this is the
+  // only place the whole deal can be checked at once. It proves two things:
+  // every card is a real card and all nine are different, and the three
+  // published commitments are openings of exactly these cards. A dealer can
+  // still choose which nine — that is the trust assumption, and it is written
+  // down — but it can no longer deal one card twice.
+  const dealt = dealtCards();
+  const salts = dealSalts();
+
+  for (const i of 0..9) {
+    checkCard(dealt[i]);
+  }
+  for (const i of 0..9) {
+    for (const k of 0..9) {
+      if (i < k) {
+        assert(dealt[i].id != dealt[k].id, "the same card cannot be dealt twice");
+      }
+    }
+  }
+
+  assert(holeCommitment([dealt[0], dealt[1]], salts[0]) == disclose(hole0Commit),
+         "seat 0 commitment does not open to the deal");
+  assert(holeCommitment([dealt[2], dealt[3]], salts[1]) == disclose(hole1Commit),
+         "seat 1 commitment does not open to the deal");
+  assert(boardCommitment([dealt[4], dealt[5], dealt[6], dealt[7], dealt[8]], salts[2]) == disclose(boardCommit),
+         "board commitment does not open to the deal");
 
   hands.insert(disclose(handId), HandSetup {
     deckCommit: disclose(deckCommit),

@@ -11,6 +11,8 @@ import { startHand, applyAction, resolveShowdown, view, legalActions } from './e
 import { reveal } from './vault.ts';
 import { botAction, botShowdown } from './bot.ts';
 import { rankOf } from './rank.ts';
+// @ts-expect-error — plain JS module shared with the test suites
+import { cardName } from '@shared/game/dealer.mjs';
 
 let failures = 0;
 const check = (name, ok, detail = '') => {
@@ -76,6 +78,45 @@ console.log(`    ended on a fold : ${folds}`);
 console.log(`    reached showdown: ${showdowns}`);
 console.log(`    hands mucked    : ${mucks}`);
 console.log(`    split pots      : ${splits}`);
+{
+  // NFV-011: a shown hand has to render the cards its published rank came from.
+  //
+  // view() used to read the opponent from the deliberately-empty hole slot, and
+  // toCard(undefined) coerced to card zero — so every shown hand displayed as
+  // `2s 2s` beside a rank computed from the real cards. Two different answers
+  // to "what did they have", on the same screen.
+  /** Check the hand down so it reaches showdown with no betting drama. */
+  const toShowdown = (hand) => {
+    let h = hand;
+    let guard = 0;
+    while (!h.betting.done && guard++ < 40) {
+      const acts = legalActions(h.betting);
+      h = applyAction(h, acts.some((a) => a.type === 'check') ? { type: 'check' } : { type: 'call' });
+    }
+    return h;
+  };
+
+  let e = toShowdown(startHand());
+  const held = (reveal(e.handId) ?? []).join(',');
+  e = resolveShowdown(e, 1, 'show', rankOf);
+  const shown = (view(e, 0).seats[1].hole ?? []).map((c) => c.rank + c.suit).join(' ');
+
+  check('a shown hand renders the cards it showed', shown.length > 0 && held.length > 0,
+        `held ${held} rendered ${shown}`);
+
+  // Against the vault itself, through the dealer's own naming, so this cannot
+  // agree with the bug by sharing its mistake.
+  const expected = (reveal(e.handId) ?? []).map(cardName).join(' ');
+  check('and they are the same cards, not card zero', shown === expected,
+        `rendered ${shown}, held ${expected}`);
+
+  // A hand that was not shown must still render nothing at all.
+  let m = toShowdown(startHand());
+  m = resolveShowdown(m, 1, 'muck', rankOf);
+  check('a mucked hand renders no cards', view(m, 0).seats[1].hole === undefined,
+        'the muck is still the muck');
+}
+
 console.log(failures === 0
   ? '\n  engine: all invariants held'
   : `\n  ${failures} FAILURES`);

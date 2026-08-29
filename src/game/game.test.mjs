@@ -110,7 +110,7 @@ console.log('\ndealing — committed, verifiable, seeded by both players\n');
 
   // neither player can change their seed after seeing the other's
   let threw = false;
-  try { deal(randomBytes(32), b.seed, { a: a.commitment, b: b.commitment }); } catch { threw = true; }
+  try { deal(randomBytes(32), b.seed, { a: a.commitment, b: b.commitment, n: n.commitment }, n.nonce); } catch { threw = true; }
   check('a seed that breaks its commitment is rejected', threw);
 }
 
@@ -178,12 +178,21 @@ console.log('\ndealing — committed, verifiable, seeded by both players\n');
   const a = commitSeed();
   const b = commitSeed();
 
+  // A deal with no nonce commitment is now refused outright (NFV-003) — it
+  // used to be waved through, which let the dealer grind.
+  let refused = false;
+  try { deal(a.seed, b.seed, { a: a.commitment, b: b.commitment }, randomBytes(32)); }
+  catch { refused = true; }
+  check('a deal with no nonce commitment is refused', refused,
+        'the check used to be skipped when the commitment was absent');
+
+  // The grind it prevented, shown against the raw shuffle rather than deal().
   let found = 0;
   for (let i = 0; i < 4000; i++) {
-    const d = deal(a.seed, b.seed, { a: a.commitment, b: b.commitment }, randomBytes(32));
-    if (d.hole[0][0] % 13 === 12 && d.hole[0][1] % 13 === 12) { found = i + 1; break; }
+    const deck = shuffle(randomBytes(32));
+    if (deck[0] % 13 === 12 && deck[2] % 13 === 12) { found = i + 1; break; }
   }
-  check('an uncommitted nonce really is grindable', found > 0,
+  check('an unbound nonce really is grindable', found > 0,
         found ? `pocket aces for seat 0 in ${found} tries` : 'not found in 4000');
 
   // With a published nonce commitment the dealer is bound before it can see

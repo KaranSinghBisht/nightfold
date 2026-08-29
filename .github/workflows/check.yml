@@ -33,33 +33,22 @@ jobs:
       - name: Start anvil
         run: anvil --port 8545 --silent &
 
-      # RA-012: proof:real was calling commitDeal and reading holeCommits long
-      # after both were removed, because contracts/managed is gitignored and a
-      # stale local build never fails anything. CI compiles fresh and then
-      # asserts the harness and the artifact agree on what the contract is.
-      - name: Real-proof harness matches the compiled contract
+      # NFV-004: the previous version of this step built its OWN witness object
+      # and regexed circuit names out of the harness source, so it passed while
+      # `proof:real` could not even construct the contract. It now imports the
+      # one bundle the whole repo shares and constructs the real generated
+      # contract with it. If a witness is missing, this fails here.
+      - name: Real-proof harness constructs the compiled contract
         run: |
           npm run compile
           node --input-type=module -e "
             import * as nf from './contracts/managed/nightfold/contract/index.js';
-            import { readFileSync } from 'node:fs';
-            const src = readFileSync('src/midnight/realproof.mjs', 'utf8');
-            const contract = new nf.Contract({
-              seatSecret: () => [], holeCards: () => [], holeSalt: () => [],
-              boardSalt: () => [], claimedHand: () => [], handPick: () => [],
-            });
-            const available = new Set([
-              ...Object.keys(contract.impureCircuits),
-              ...Object.keys(nf.pureCircuits),
-            ]);
-            const called = [...src.matchAll(/'([a-zA-Z]+)'\s*,\s*[a-z]+\.ps|pc\.([a-zA-Z]+)\(/g)]
-              .flatMap((m) => [m[1], m[2]]).filter(Boolean);
-            const missing = [...new Set(called)].filter((n) => !available.has(n));
-            if (missing.length) {
-              console.error('harness calls circuits the contract does not have:', missing.join(', '));
-              process.exit(1);
-            }
-            console.log('harness and artifact agree —', available.size, 'circuits');
+            import { witnesses, WITNESS_NAMES } from './src/witnesses.mjs';
+            const contract = new nf.Contract(witnesses);
+            const circuits = Object.keys(contract.impureCircuits);
+            console.log('constructed with', WITNESS_NAMES.length, 'witnesses:', WITNESS_NAMES.join(', '));
+            console.log('circuits:', circuits.join(', '));
+            if (!circuits.includes('openHand')) { console.error('openHand missing'); process.exit(1); }
           "
 
       - run: npm test

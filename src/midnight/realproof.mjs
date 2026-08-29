@@ -94,7 +94,15 @@ async function main() {
 
   logger.info(`board ${showHand(board)}`);
 
-  await proved('openHand', providers, deployed, 'openHand', alice.ps,
+  // openHand proves the deal is possible, so the dealer brings all nine cards
+  // and the three salts (NFV-003).
+  const dealerPS = {
+    ...emptyPrivateState(),
+    dealt: [...alice.hole, ...bob.hole, ...board],
+    dealSalts: [alice.ps.salt, bob.ps.salt, boardSalt],
+  };
+
+  await proved('openHand', providers, deployed, 'openHand', dealerPS,
     handId, deckCommit, boardCommit, hole0Commit, hole1Commit, seat0Key, seat1Key);
 
   alice.ps = stage(alice.ps, { hole: alice.hole });

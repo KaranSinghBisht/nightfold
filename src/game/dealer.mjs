@@ -108,7 +108,11 @@ export function deal(seedA, seedB, commitments, nonce = randomBytes(32)) {
   // audit ground out pocket aces for a chosen seat in 963 tries. When a nonce
   // commitment is published up front the dealer is bound before it can see
   // anything worth grinding against, so nobody moves last.
-  if (commitments.n !== undefined && !sameBytes(sha('nf:noncecommit:', nonce), commitments.n)) {
+  // NFV-003: this used to run only `if (commitments.n !== undefined)`, so a
+  // dealer kept the original grind simply by not supplying one. An optional
+  // integrity check is not an integrity check.
+  if (commitments.n === undefined) throw new Error('dealer must publish a nonce commitment before the deal');
+  if (!sameBytes(sha('nf:noncecommit:', nonce), commitments.n)) {
     throw new Error('dealer nonce does not match its commitment');
   }
 

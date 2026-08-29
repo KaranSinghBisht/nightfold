@@ -6,26 +6,22 @@
 // rather than a shortcut the contract no longer permits.
 
 import * as rt from '@midnight-ntwrk/compact-runtime';
+import { witnesses as sharedWitnesses } from './witnesses.mjs';
 import { randomBytes } from 'node:crypto';
 
 export const ADDRESS = rt.sampleContractAddress();
 export const COIN_PK = '0'.repeat(64);
 
-export const witnesses = {
-  seatSecret: ({ privateState }) => [privateState, privateState.secret],
-  holeCards: ({ privateState }) => [privateState, privateState.hole],
-  holeSalt: ({ privateState }) => [privateState, privateState.salt],
-  boardSalt: ({ privateState }) => [privateState, privateState.boardSalt],
-  claimedHand: ({ privateState }) => [privateState, privateState.claimed],
-  handPick: ({ privateState }) => [privateState, privateState.pick],
-};
+// One bundle for the whole repo — see src/witnesses.mjs (NFV-004).
+export { witnesses } from './witnesses.mjs';
 
 export const emptyPS = () => ({
-  secret: randomBytes(32), hole: [], salt: randomBytes(32), boardSalt: randomBytes(32), claimed: [], pick: [],
+  secret: randomBytes(32), hole: [], salt: randomBytes(32), boardSalt: randomBytes(32),
+  claimed: [], pick: [], dealt: [], dealSalts: [],
 });
 
 export function newTable(Contract) {
-  const contract = new Contract(witnesses);
+  const contract = new Contract(sharedWitnesses);
   const init = contract.initialState(rt.createConstructorContext(emptyPS(), COIN_PK));
   return { contract, state: init.currentContractState };
 }
@@ -74,7 +70,15 @@ export function dealHand(t, pureCircuits, { board, hole0, hole1 }) {
     deckCommit, boardCommit, hole0Commit, hole1Commit, seat0Key, seat1Key,
   );
 
-  call(t, 'openHand', emptyPS(), handId,
+  // openHand proves the deal is possible, so the dealer has to bring it
+  // (NFV-003). Nine cards, in order: hole0, hole1, board.
+  const dealerPS = {
+    ...emptyPS(),
+    dealt: [...hole0, ...hole1, ...board],
+    dealSalts: [s0.salt, s1.salt, boardSalt],
+  };
+
+  call(t, 'openHand', dealerPS, handId,
     deckCommit, boardCommit, hole0Commit, hole1Commit, seat0Key, seat1Key);
 
   return { handId, board, boardSalt, seats: [s0, s1] };

@@ -24,17 +24,12 @@ const check = (name, ok, detail = '') => {
 
 // ---- harness ---------------------------------------------------------------
 
-const witnesses = {
-  seatSecret: ({ privateState }) => [privateState, privateState.secret],
-  holeCards: ({ privateState }) => [privateState, privateState.hole],
-  holeSalt: ({ privateState }) => [privateState, privateState.salt],
-  boardSalt: ({ privateState }) => [privateState, privateState.boardSalt],
-  claimedHand: ({ privateState }) => [privateState, privateState.claimed],
-  handPick: ({ privateState }) => [privateState, privateState.pick],
-};
+// One bundle for the whole repo (NFV-004).
+import { witnesses } from './witnesses.mjs';
 
 const emptyPS = () => ({
-  secret: randomBytes(32), hole: [], salt: randomBytes(32), boardSalt: randomBytes(32), claimed: [], pick: [],
+  secret: randomBytes(32), hole: [], salt: randomBytes(32), boardSalt: randomBytes(32),
+  claimed: [], pick: [], dealt: [], dealSalts: [],
 });
 
 function newTable() {
@@ -81,7 +76,13 @@ function dealHand(t, { board, hole0, hole1 }) {
     deckCommit, boardCommit, hole0Commit, hole1Commit, seat0Key, seat1Key,
   );
 
-  call(t, 'openHand', emptyPS(), handId,
+  const dealerPS = {
+    ...emptyPS(),
+    dealt: [...hole0, ...hole1, ...board],
+    dealSalts: [s0.salt, s1.salt, boardSalt],
+  };
+
+  call(t, 'openHand', dealerPS, handId,
     deckCommit, boardCommit, hole0Commit, hole1Commit, seat0Key, seat1Key);
 
   return { handId, board, boardSalt, seats: [s0, s1] };
@@ -219,21 +220,34 @@ console.log('\nresolutions are mutually exclusive\n');
 
 console.log('\nthe deal must be a real deal\n');
 {
-  // RA-003: the contract checked that the five claimed cards sat at distinct
-  // POSITIONS, which is not the same as being distinct CARDS. An auditor
-  // opened and settled a hand whose seven available positions were all the ace
-  // of spades, and it ranked happily.
-  const AS = cards('As')[0];
-  const t2 = newTable();
-  const dupBoard = [AS, AS, AS, AS, AS];
-  const dupHole = [AS, AS];
-  const h2 = dealHand(t2, { board: dupBoard, hole0: dupHole, hole1: cards('Kd Qd') });
+  // RA-003 / NFV-003: an impossible deal is refused when the hand OPENS, which
+  // is earlier and stronger than the first attempt at this.
+  //
+  // That attempt checked the five claimed cards sat at distinct POSITIONS among
+  // one seat's seven, which is not the same as being distinct CARDS and says
+  // nothing at all about the other seat. Two failures got through it: a hand of
+  // seven identical aces, and — worse, because it needs no malice at showdown —
+  // both seats holding the same ace while each seat's own cards looked fine.
+  //
+  // openHand now proves all nine dealt cards are different before anyone acts.
+  const refusedFor = (deal) => {
+    try { dealHand(newTable(), deal); return null; }
+    catch (e) { return String(e.message); }
+  };
 
-  check('seven copies of one card cannot be ranked',
-        rejects(() => call(t2, 'revealHand',
-          stage({ ...h2.seats[0], boardSalt: h2.boardSalt }, dupHole, dupBoard),
-          h2.handId, 0n, dupBoard)),
-        'the same card cannot appear twice');
+  const AS = cards('As')[0];
+  const sevenAces = refusedFor({ board: [AS, AS, AS, AS, AS], hole0: [AS, AS], hole1: cards('Kd Qd') });
+  check('a hand of seven identical aces cannot be opened',
+        sevenAces !== null && sevenAces.includes('the same card cannot be dealt twice'));
+
+  const crossSeat = refusedFor({ board: cards('2s 3d 4h 5c 9d'), hole0: cards('As Kc'), hole1: cards('As Qc') });
+  check('the same card cannot be dealt to two seats', 
+        crossSeat !== null && crossSeat.includes('the same card cannot be dealt twice'),
+        'each seat looked fine on its own — the check has to be global');
+
+  const honest = refusedFor({ board: cards('2s 3d 4h 5c 9d'), hole0: cards('As Kc'), hole1: cards('Ah Qc') });
+  check('an honest deal still opens', honest === null,
+        'so the two refusals are about duplicates, not about openHand being broken');
 }
 
 console.log('\nhand setup is fixed before anyone acts\n');

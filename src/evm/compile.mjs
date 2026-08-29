@@ -53,3 +53,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`  functions: ${abi.filter((x) => x.type === 'function').map((x) => x.name).join(', ')}`);
   }
 }
+
+export const compileFakeCage = () => compileContract('FakeCage.sol', 'FakeCage');

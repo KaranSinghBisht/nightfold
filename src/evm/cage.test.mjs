@@ -107,6 +107,17 @@ check('chip supply is tracked', (await read(baseCage, 'totalChips', [])) === 100
 
 const moved = 1000n; // exactly what he burns; a cage cannot mint on the way in
 
+// NFV-001: the destination will only read a burn from a cage it knows, and
+// registration is delayed so a compromised admin cannot add one and use it in
+// the same block.
+await wait(await call(baseCage, 'deployer', 'proposeCage', [solCage]));
+check('a proposed cage is not usable yet',
+      await reverts(() => call(baseCage, 'deployer', 'activateCage', [solCage])),
+      'governance delay');
+await pub.request({ method: 'evm_increaseTime', params: ['0x15180'] }); // 1 day
+await pub.request({ method: 'evm_mine', params: [] });
+await wait(await call(baseCage, 'deployer', 'activateCage', [solCage]));
+
 const burnTx = await wait(await call(solCage, 'bob', 'burnForRemote', [moved, 31337n, baseCage]));
 check('leaving a cage burns the chips there',
       (await read(solCage, 'chips', [acct.bob.address])) === 0n,

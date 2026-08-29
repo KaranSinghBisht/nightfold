@@ -56,11 +56,29 @@ contract NightfoldCage {
     address public oracle;
     bool public paused;
 
+    /// @notice Source cages this cage will read a burn receipt from.
+    ///
+    /// @dev NFV-001: `creditRemote` used to call whatever address the relayer
+    ///      named and believe a `true` from `issuedReceipt`. A contract that
+    ///      returns true unconditionally is trivial to write, so the relayer
+    ///      pointed at one and drained the float without a single signature.
+    ///      Answering an interface is not being the thing.
+    ///
+    ///      Registration is delayed rather than immediate so a compromised
+    ///      admin key cannot add a hostile cage and use it in the same block.
+    mapping(address => bool) public isKnownCage;
+    mapping(address => uint64) public cageProposedAt;
+    uint64 public constant GOVERNANCE_DELAY = 1 days;
+
     /// @notice Watchers whose signatures authorise a remote credit.
     mapping(address => bool) public isWatcher;
     uint256 public watcherCount;
     /// @notice How many distinct watcher signatures a remote credit needs.
     uint256 public threshold;
+    /// @notice A quorum of one is not a quorum.
+    uint256 public constant MIN_THRESHOLD = 2;
+    /// @notice Watcher-set changes are delayed for the same reason cages are.
+    mapping(bytes32 => uint64) public watcherChangeProposedAt;
 
     // ---- pricing -----------------------------------------------------------
 
@@ -85,6 +103,15 @@ contract NightfoldCage {
     uint256 public immutable creditCapPerEpoch;
     uint64 public constant EPOCH = 1 hours;
 
+    /// @notice Largest single credit, as a share of unencumbered reserves.
+    ///
+    /// @dev The solvency invariant bounds OVER-issuance; it does not bound
+    ///      theft. Issuing exactly the backed amount and cashing out is a
+    ///      complete drain and stays solvent at every step — which is how a
+    ///      quorum-signed receipt emptied a funded cage while every check
+    ///      passed. This bounds the blast radius of one accepted receipt.
+    uint256 public constant MAX_CREDIT_BPS_OF_RESERVES = 2_000;
+
     struct Deposit {
         address player;
         uint128 amount;
@@ -105,6 +132,14 @@ contract NightfoldCage {
     mapping(address => uint256) public withdrawable;
     uint256 public totalWithdrawable;
 
+    /// @notice Deposits taken but not yet credited or reclaimed.
+    ///
+    /// @dev NFV-002: these were counted as reserves while still being owed. A
+    ///      depositor's own ETH backed somebody else's incoming credit, and
+    ///      when they came to reclaim, the cage held nothing. Money that is
+    ///      going to be someone's chips or someone's refund is not float.
+    uint256 public totalPendingDeposits;
+
     /// @notice Replay protection over burn receipts and local provenance.
     mapping(bytes32 => bool) public creditedProvenance;
     mapping(uint64 => uint256) public creditedInEpoch;
@@ -113,6 +148,23 @@ contract NightfoldCage {
     /// @notice Receipts this cage has issued. A same-chain destination reads
     ///         this directly rather than taking a signature's word for it.
     mapping(bytes32 => bool) public issuedReceipt;
+
+    /// @notice Burns that left, so one that never arrives can come back.
+    ///
+    /// @dev NFV-010: burnForRemote destroyed chips unconditionally. A typo in
+    ///      the destination, a paused or unfunded cage, or an unavailable
+    ///      quorum left them destroyed with nothing to show for it. A burn is
+    ///      now recoverable at the source if it has not been claimed within the
+    ///      window — the receipt is invalidated first, so it cannot be both
+    ///      reclaimed here and credited there.
+    struct Burn {
+        address player;
+        uint128 chips;
+        uint64 burnedAt;
+        bool reclaimed;
+    }
+    mapping(uint256 => Burn) public burns;
+    uint64 public constant BURN_RECLAIM_AFTER = 6 hours;
 
     /// @notice A remote credit, as signed by the watchers.
     struct RemoteCredit {
@@ -136,6 +188,11 @@ contract NightfoldCage {
     event RatePosted(uint256 chipsPerToken, uint256 postedAt);
     event RoleChanged(bytes32 indexed role, address indexed from, address indexed to);
     event PausedSet(bool paused);
+    event WatchersSet(uint256 count, uint256 threshold);
+    event CageProposed(address indexed cage, uint64 activeFrom);
+    event CageRegistered(address indexed cage);
+    event CageRevoked(address indexed cage);
+    event BurnReclaimed(uint256 indexed nonce, address indexed player, uint256 chips);
 
     error NotRelayer();
     error NotOracle();
@@ -157,6 +214,8 @@ contract NightfoldCage {
     error Paused();
     error SelfDeal();
     error Slippage();
+    error UnknownCage();
+    error TooLarge();
 
     modifier onlyAdmin() { if (msg.sender != admin) revert NotAdmin(); _; }
     modifier onlyRelayer() { if (msg.sender != relayer) revert NotRelayer(); _; }
@@ -191,7 +250,7 @@ contract NightfoldCage {
 
     /// @notice What the cage owes, in native asset, at the redemption rate.
     function liabilities() public view returns (uint256) {
-        return tokensFor(totalChips) + totalWithdrawable;
+        return tokensFor(totalChips) + totalWithdrawable + totalPendingDeposits;
     }
 
     /// @notice Reserves not already owed to somebody.
@@ -288,6 +347,8 @@ contract NightfoldCage {
             credited: false,
             reclaimed: false
         });
+        // Owed from the moment it arrives, until it becomes chips or a refund.
+        totalPendingDeposits += msg.value;
 
         emit BoughtIn(depositId, msg.sender, uint128(msg.value), quoted);
     }
@@ -299,6 +360,7 @@ contract NightfoldCage {
         if (d.player == address(0) || d.credited || d.reclaimed) revert NothingToDo();
 
         d.credited = true;
+        totalPendingDeposits -= d.amount;
         _credit(d.player, d.chipsQuoted, block.chainid, depositId);
     }
 
@@ -328,6 +390,12 @@ contract NightfoldCage {
         issuedReceipt[
             _digest(block.chainid, address(this), dstChainId, dstCage, msg.sender, chipAmount, nonce)
         ] = true;
+        burns[nonce] = Burn({
+            player: msg.sender,
+            chips: uint128(chipAmount),
+            burnedAt: uint64(block.timestamp),
+            reclaimed: false
+        });
 
         emit BurnedForRemote(nonce, msg.sender, chipAmount, dstChainId, dstCage);
     }
@@ -371,16 +439,20 @@ contract NightfoldCage {
         bytes32 digest = creditDigest(rc);
 
         // When the source cage is on this chain the burn is READABLE, so read
-        // it. A signature is only needed where the source is genuinely out of
-        // reach; taking one on faith for a contract sitting next door is how
-        // one deposit ended up spendable in two cages.
+        // it — but only from a cage this one actually knows. Reading state off
+        // an arbitrary address proves nothing: a contract whose issuedReceipt
+        // always returns true is three lines long (NFV-001).
         if (rc.srcChainId == block.chainid) {
+            if (!isKnownCage[rc.srcCage]) revert UnknownCage();
             if (!ICageReceipts(rc.srcCage).issuedReceipt(digest)) revert BadSignatures();
         } else {
             _requireQuorum(digest, sigs);
         }
 
-        _credit(rc.player, rc.chipAmount, rc.srcChainId, bytes32(rc.nonce));
+        // NFV-005: keyed by the WHOLE receipt. Keying on (chain, nonce) meant
+        // every cage's first transfer collided, because every cage starts its
+        // burn nonce at one.
+        _credit(rc.player, rc.chipAmount, rc.srcChainId, digest);
     }
 
     /// @dev Signers must arrive strictly ascending, which makes duplicates
@@ -430,6 +502,12 @@ contract NightfoldCage {
         if (creditedProvenance[provenance]) revert AlreadyUsed();
         creditedProvenance[provenance] = true;
 
+        // No single credit may claim more than a slice of what is actually
+        // spare. Solvency alone allowed one receipt to mint exactly the backed
+        // amount and walk out with the whole float.
+        uint256 ceiling = (chipsFor(unencumbered()) * MAX_CREDIT_BPS_OF_RESERVES) / 10_000;
+        if (amount > ceiling) revert TooLarge();
+
         uint64 epoch = uint64(block.timestamp) / EPOCH;
         uint256 used = creditedInEpoch[epoch] + amount;
         if (used > creditCapPerEpoch) revert EpochCapExceeded();
@@ -473,6 +551,7 @@ contract NightfoldCage {
         if (block.timestamp < d.depositedAt + RECLAIM_AFTER) revert TooEarly();
 
         d.reclaimed = true;
+        totalPendingDeposits -= d.amount;
         withdrawable[d.player] += d.amount;
         totalWithdrawable += d.amount;
         emit Reclaimed(depositId, d.player, d.amount);
@@ -491,12 +570,56 @@ contract NightfoldCage {
         emit Withdrawn(msg.sender, owed);
     }
 
+    /// @notice Take back chips burned for a transfer that never landed.
+    ///
+    /// @dev The receipt is revoked before the chips return, so the destination
+    ///      can no longer read it as valid. Same-chain destinations read the
+    ///      receipt live, so revoking is sufficient; a remote destination that
+    ///      already credited against a watcher quorum is why the window exists
+    ///      rather than being instant.
+    function reclaimBurn(
+        uint256 nonce,
+        uint256 dstChainId,
+        address dstCage
+    ) external {
+        Burn storage b = burns[nonce];
+        if (b.player != msg.sender) revert NotYours();
+        if (b.reclaimed) revert NothingToDo();
+        if (block.timestamp < b.burnedAt + BURN_RECLAIM_AFTER) revert TooEarly();
+
+        bytes32 digest = _digest(block.chainid, address(this), dstChainId, dstCage, b.player, b.chips, nonce);
+        if (!issuedReceipt[digest]) revert NothingToDo();
+
+        b.reclaimed = true;
+        issuedReceipt[digest] = false;
+
+        chips[b.player] += b.chips;
+        totalChips += b.chips;
+        _requireSolvent();
+
+        emit BurnReclaimed(nonce, b.player, b.chips);
+    }
+
     /// @notice House float, so a cage can pay out chips bought elsewhere.
     function fund() external payable {}
 
     // ---- administration ----------------------------------------------------
 
+    /// @dev NFV-009: an admin could previously add its own keys and drop the
+    ///      threshold to one in a single transaction, which makes the quorum
+    ///      decorative. Changes are proposed, then activated after a delay, and
+    ///      the threshold has a floor.
+    function proposeWatchers(address[] calldata watchers, uint256 newThreshold) external onlyAdmin {
+        watcherChangeProposedAt[keccak256(abi.encode(watchers, newThreshold))] = uint64(block.timestamp);
+    }
+
     function setWatchers(address[] calldata watchers, uint256 newThreshold) external onlyAdmin {
+        // The first quorum is set at deployment time, before the cage can hold
+        // anything; after that every change waits.
+        if (watcherCount != 0) {
+            uint64 proposedAt = watcherChangeProposedAt[keccak256(abi.encode(watchers, newThreshold))];
+            if (proposedAt == 0 || block.timestamp < proposedAt + GOVERNANCE_DELAY) revert TooEarly();
+        }
         for (uint256 i = 0; i < watchers.length; i++) {
             if (watchers[i] == address(0)) revert BadParameter();
             if (!isWatcher[watchers[i]]) {
@@ -504,8 +627,30 @@ contract NightfoldCage {
                 watcherCount++;
             }
         }
-        if (newThreshold == 0 || newThreshold > watcherCount) revert BadParameter();
+        if (newThreshold < MIN_THRESHOLD || newThreshold > watcherCount) revert BadParameter();
         threshold = newThreshold;
+        emit WatchersSet(watcherCount, newThreshold);
+    }
+
+    /// @notice Register a source cage, after a delay. See isKnownCage.
+    function proposeCage(address cage) external onlyAdmin {
+        if (cage == address(0)) revert BadParameter();
+        cageProposedAt[cage] = uint64(block.timestamp);
+        emit CageProposed(cage, uint64(block.timestamp) + GOVERNANCE_DELAY);
+    }
+
+    function activateCage(address cage) external onlyAdmin {
+        uint64 proposedAt = cageProposedAt[cage];
+        if (proposedAt == 0) revert NothingToDo();
+        if (block.timestamp < proposedAt + GOVERNANCE_DELAY) revert TooEarly();
+        isKnownCage[cage] = true;
+        emit CageRegistered(cage);
+    }
+
+    function revokeCage(address cage) external onlyAdmin {
+        isKnownCage[cage] = false;
+        cageProposedAt[cage] = 0;
+        emit CageRevoked(cage);
     }
 
     function removeWatcher(address watcher) external onlyAdmin {
@@ -521,10 +666,19 @@ contract NightfoldCage {
         relayer = next;
     }
 
+    /// @dev NFV-008: exitRate() branches on whether an oracle is set, so
+    ///      changing it moves what every outstanding chip redeems for. Doing
+    ///      that without checking left the cage owing more than it held. The
+    ///      transition is now solvency-checked like any other price move.
     function setOracle(address next) external onlyAdmin {
-        emit RoleChanged("oracle", oracle, next);
+        address was = oracle;
+        emit RoleChanged("oracle", was, next);
         oracle = next;
         priceUpdatedAt = uint64(block.timestamp);
+        // Disabling an oracle reverts pricing to the launch rate; keep the live
+        // price aligned so redemption does not jump underneath holders.
+        if (next == address(0)) livePrice = chipsPerToken;
+        _requireSolvent();
     }
 
     /// @notice Stop new value entering. Never stops it leaving.

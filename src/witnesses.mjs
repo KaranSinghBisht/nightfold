@@ -24,7 +24,10 @@ export const showHand = (cs) => cs.map(showCard).join(' ');
 
 /** Fresh private state for one player. */
 export function emptyPrivateState() {
-  return { secret: randomBytes(32), hole: [], salt: randomBytes(32), boardSalt: randomBytes(32), claimed: [], pick: [] };
+  return {
+    secret: randomBytes(32), hole: [], salt: randomBytes(32), boardSalt: randomBytes(32),
+    claimed: [], pick: [], dealt: [], dealSalts: [],
+  };
 }
 
 /**
@@ -42,6 +45,15 @@ export function stage(ps, { hole, salt, claimed, pick }) {
   };
 }
 
+/**
+ * The witness bundle. There is exactly one, and everything uses it.
+ *
+ * NFV-004: there used to be three — the simulator's, the real-proof harness's,
+ * and one CI built for itself. The harness's omitted seatSecret and boardSalt,
+ * so `proof:real` could not even construct the contract, and CI could not
+ * notice because it was checking a different object. A bundle that is copied is
+ * a bundle that drifts.
+ */
 export const witnesses = {
   seatSecret: ({ privateState }) => [privateState, privateState.secret],
   holeCards: ({ privateState }) => [privateState, privateState.hole],
@@ -49,7 +61,12 @@ export const witnesses = {
   boardSalt: ({ privateState }) => [privateState, privateState.boardSalt],
   claimedHand: ({ privateState }) => [privateState, privateState.claimed],
   handPick: ({ privateState }) => [privateState, privateState.pick],
+  dealtCards: ({ privateState }) => [privateState, privateState.dealt ?? []],
+  dealSalts: ({ privateState }) => [privateState, privateState.dealSalts ?? []],
 };
+
+/** Every witness the contract requires, for anyone wanting to check coverage. */
+export const WITNESS_NAMES = Object.keys(witnesses);
 
 /**
  * Pick the best five of seven by brute force, off-chain.
