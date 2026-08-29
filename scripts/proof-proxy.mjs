@@ -59,6 +59,18 @@ createServer((req, res) => {
           const tag = lead.match(/midnight:\([^)]*\)*[^:]*:/)?.[0]
                    ?? lead.replace(/[^\x20-\x7e]/g, '.').slice(0, 80);
           console.log(`  sent tag: ${tag}`);
+          if (!ok && process.env.PROXY_HEXDUMP) {
+            // A rejected body is small enough to read in full, and the shape
+            // after the tag says whether the optional IR was actually sent.
+            const after = body.subarray(tag.length);
+            console.log(`  body after tag (${after.length}B):`);
+            for (let i = 0; i < Math.min(after.length, 256); i += 16) {
+              const row = after.subarray(i, i + 16);
+              const hex = [...row].map((b) => b.toString(16).padStart(2, '0')).join(' ');
+              const asc = [...row].map((b) => (b >= 32 && b < 127 ? String.fromCharCode(b) : '.')).join('');
+              console.log(`    ${String(i).padStart(4)}  ${hex.padEnd(47)}  ${asc}`);
+            }
+          }
           if (!ok) {
             console.log('  ┌─ response body ' + '─'.repeat(50));
             console.log('  │ ' + respBody.toString('utf8').slice(0, 1500).split('\n').join('\n  │ '));

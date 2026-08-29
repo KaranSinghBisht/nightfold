@@ -123,46 +123,69 @@ Real ZK proofs run against a local devnet:
 npm run proof:real           # deploy + play a hand with real proofs
 ```
 
-**What that has and has not shown, exactly.**
-
-It works up to and including deployment. The wallet syncs, DUST registers, and
-the contract deploys to a local devnet with real ZK proofs:
+A whole hand, proved and landed:
 
 ```
-INFO: Your wallet NIGHT balance is: 250000000000000
-INFO: deploying nightfold...
-INFO: deployed in 17.7s at ecedc51f8b47a900137d42ebf9a11c928f8fa7f99c3057fc006f3401e7170285
+deploy                      19.4s
+openHand                    30.6s
+revealHand seat 1           29.3s
+muckHand seat 0             24.0s
+settle                      24.0s
+------------------------------------
+hand total                 107.8s  (4 transactions)
+
+ledger: 1 hand, 1 rank, 1 muck, 1 settled
 ```
 
-**Circuit calls do not.** Every one is rejected by the proof server:
+Every number above is from one run of `npm run proof:real` against the stack in
+`compose.yml`. The muck is real here too — seat 0's cards reach the proof
+server and never reach the chain.
+
+**The bug that hid this for two days, because it is worth writing down.**
+
+Every circuit call used to be rejected by the proof server with `bad input`, in
+about 3ms — a refusal before any work. Deployment proved fine, which made it
+look like a version or configuration problem, and a bare-counter contract with
+no witnesses at all failed identically, which ruled out this contract. Version
+skew, duplicate WASM runtimes, missing keys, asset paths and payload size were
+all ruled out too, and all of that was a waste of time.
+
+The proof server states what it wants in its own 400:
 
 ```
-'check' returned an error: Failed Proof Server response:
-url="http://127.0.0.1:6300/check", code="400", status="Bad Request"
+POST /check -> expected header tag 'midnight:(proof-preimage-versioned,option(wrapped-ir)):'
 ```
 
-`scripts/proof-proxy.mjs` captures the body the SDK hides — the server replies
-`bad input` to an 820-byte request in 11ms, which is a rejection before any
-work, not a proof that failed.
+`scripts/proof-proxy.mjs` shows the tag being sent matches exactly — and that
+the whole request is 143 bytes, ending in a `00`. That last byte is
+`option(wrapped-ir) = None`: the request carried no circuit IR at all.
 
-**It is not this contract.** `scripts/probe.mjs` deploys a contract whose entire
-body is a counter and a circuit that increments it, with no witnesses at all,
-and its call is rejected identically:
+The cause is one missing argument here:
 
-```
-INFO: probe deployed at 6c80f69d9c9aac853c9dfff5504bf6a8d9e729e7e69fcc174bc5f8c90f302fa4
-'check' returned an error: ... code="400" ...
+```js
+httpClientProofProvider(env.proofServer)                     // before
+httpClientProofProvider(env.proofServer, zkConfigProvider)   // after
 ```
 
-So on this stack — compiler 0.31.1, runtime 0.16.0, ledger 8.1.0, proof server
-8.1.0, all aligned, single WASM copy, IR present on disk, no payload limit (the
-server accepts 20 MB) — deploys prove and circuit calls do not. Ruled out:
-version skew, duplicate runtimes, missing keys, asset paths, request size.
+`httpClientProofProvider(url, zkConfigProvider, config)` takes three. With the
+second one absent, the SDK does this:
 
-Every circuit is exercised against the Compact simulator instead, which is what
-`npm run check` runs. The timings in the table above come from earlier runs on
-smaller circuits and have not been re-measured, because the calls that would
-re-measure them are the ones being rejected.
+```js
+const getKeyMaterial = async (zkConfigProvider, keyLocation) => {
+  try { return zkConfigToProvingKeyMaterial(await zkConfigProvider.get(keyLocation)); }
+  catch { return undefined; }     // swallows `undefined.get is not a function`
+};
+```
+
+so a `TypeError` became a silent `undefined`, `undefined` became `None`, and
+`None` became `bad input` from a server three layers away. **A bare `catch` that
+discards its error turned a one-line mistake into a two-day hunt**, which is the
+same reason this repo's own rule is to never swallow an error silently.
+
+`npm run check` still runs every circuit against the Compact simulator, because
+348 assertions that take 90 seconds are worth more per commit than four that
+take two minutes. `npm run proof:real` is what proves the simulator is not
+lying.
 
 ## Measured, not assumed
 

@@ -69,6 +69,10 @@ export function buildProviders(wallet, { env = LOCAL, privateStateDir = '.nightf
   // never read each other's hole cards out of the same LevelDB.
   const accountId = wallet.coinPublicKey?.toString?.() ?? String(wallet.coinPublicKey ?? 'nightfold');
 
+  // The proof provider needs the ZK config provider — it is how it finds the
+  // IR for the circuit being proved. Built first so both can share it.
+  const zkConfigProvider = new NodeZkConfigProvider(zkConfigPath);
+
   return {
     privateStateProvider: levelPrivateStateProvider({
       privateStateStoreName: privateStateDir,
@@ -82,8 +86,23 @@ export function buildProviders(wallet, { env = LOCAL, privateStateDir = '.nightf
     publicDataProvider: indexerPublicDataProvider(env.indexer, env.indexerWS),
     // Overridable: the provider's path wins over the CompiledContract's, so a
     // second contract (scripts/probe.mjs) needs to say where ITS keys are.
-    zkConfigProvider: new NodeZkConfigProvider(zkConfigPath),
-    proofProvider: httpClientProofProvider(env.proofServer),
+    zkConfigProvider,
+    // THE SECOND ARGUMENT IS NOT OPTIONAL. httpClientProofProvider takes
+    // (url, zkConfigProvider, config), and this passed only the url for the
+    // life of the project. Inside, the provider does:
+    //
+    //   const getKeyMaterial = async (zkConfigProvider, keyLocation) => {
+    //     try { return zkConfigToProvingKeyMaterial(await zkConfigProvider.get(keyLocation)); }
+    //     catch { return undefined; }        // <- swallows the TypeError
+    //   };
+    //
+    // so `undefined.get(...)` threw, the bare catch discarded it, and the
+    // request went out with option(wrapped-ir) = None. The proof server
+    // answered "bad input" in 3ms — a rejection before any work, which is
+    // exactly what a missing IR looks like. Every circuit call in this repo
+    // failed on this, and the swallowed error is why it read as a version or
+    // config problem for so long.
+    proofProvider: httpClientProofProvider(env.proofServer, zkConfigProvider),
     walletProvider: wallet,
     midnightProvider: wallet,
   };
