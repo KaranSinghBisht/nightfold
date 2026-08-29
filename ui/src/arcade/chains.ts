@@ -40,7 +40,16 @@ const chipsPerToken = (ticker: string) => Math.round(USD[ticker] / CHIP_USD);
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 
-export type ChainMode = 'native' | 'attested';
+/**
+ * Three honest states, not two.
+ *
+ *   native    NightfoldCage.sol runs on this chain and holds the deposit.
+ *   watched   No cage here, but a real watcher reads the chain and reports
+ *             deposits it has actually seen. src/solana/watcher.mjs.
+ *   attested  Neither. The cage would accept a signed claim about this chain;
+ *             nothing produces those claims yet.
+ */
+export type ChainMode = 'native' | 'watched' | 'attested';
 
 export interface Chain {
   id: string;
@@ -161,7 +170,7 @@ export const MIDNIGHT_MARK = [
 export const CHAINS: Chain[] = [
   { id: 'base', short: 'BASE', name: 'Base', ticker: 'ETH', colour: '#0052FF', mode: 'native', mark: BASE },
   { id: 'ethereum', short: 'ETH', name: 'Ethereum', ticker: 'ETH', colour: '#627EEA', mode: 'native', mark: ETHEREUM },
-  { id: 'solana', short: 'SOL', name: 'Solana', ticker: 'SOL', colour: '#9945FF', mode: 'attested', mark: SOLANA },
+  { id: 'solana', short: 'SOL', name: 'Solana', ticker: 'SOL', colour: '#9945FF', mode: 'watched', mark: SOLANA },
   { id: 'cardano', short: 'ADA', name: 'Cardano', ticker: 'ADA', colour: '#3468D1', mode: 'attested', mark: CARDANO },
   { id: 'bitcoin', short: 'BTC', name: 'Bitcoin', ticker: 'BTC', colour: '#F7931A', mode: 'attested', mark: BITCOIN },
   { id: 'near', short: 'NEAR', name: 'NEAR', ticker: 'NEAR', colour: '#00EC97', mode: 'attested', mark: NEAR },

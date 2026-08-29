@@ -27,8 +27,14 @@ export function hasInjectedWallet(): boolean {
   return provider() !== undefined;
 }
 
-/** A stable stand-in so the demo is reproducible, not a random each reload. */
-const DEMO_ADDRESS = '0x9f2cA1e4b6D3705E8Ac0F2b21b4Dd7C0e1a94d81';
+/**
+ * A stable stand-in so the demo is reproducible, not a random each reload.
+ *
+ * EIP-55 checksummed — the first version of this was hand-typed and failed
+ * checksum validation, which every serious tool enforces. An address nobody can
+ * paste anywhere is a bad stand-in for an address.
+ */
+const DEMO_ADDRESS = '0x9F2cA1E4B6d3705e8AC0f2b21B4Dd7C0E1a94d81';
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 

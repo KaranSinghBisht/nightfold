@@ -254,12 +254,37 @@ property of those chains, not of where the effort went.
 |---|---|---|
 | Base | **native** | the cage runs here and holds the deposit |
 | Ethereum | **native** | same bytecode — every EVM chain is one adapter |
-| Solana | attested | no cage here; a watcher quorum vouches for the deposit |
-| Cardano | attested | as above |
-| Bitcoin | attested | as above, and it cannot be otherwise |
-| NEAR | attested | as above |
+| Solana | **watched** | no cage here, but a real watcher reads devnet and reports deposits it has seen |
+| Cardano | attested | no cage and no watcher yet — a signed claim would be accepted |
+| Bitcoin | attested | as Cardano, and it cannot be native at all |
+| NEAR | attested | as Cardano |
 
-**Be exact about the attested half.** The cage's side of it is real and tested:
+### Solana is watched, not simulated
+
+`src/solana/watcher.mjs` reads Solana devnet over JSON-RPC — dependency-free,
+because the watcher only ever reads and four HTTP calls do not need an SDK. It
+finds real transfers into the cage's deposit address, reads the depositor's EVM
+address from the SPL memo, converts lamports to chips at the published rate, and
+produces the receipt the EVM cage verifies.
+
+```bash
+npm run solana:watch                              # real deposits, live
+npm run solana:deposit -- 0.05 0xYourAddress      # make one
+```
+
+`npm run check:solana` runs the parser over **live devnet transactions** — it
+pulls recent memo-program transactions off the chain and asserts none of them is
+mistaken for a deposit — then credits a Solana-derived receipt on an EVM cage
+and proves it cannot be credited twice. The network-dependent checks skip rather
+than fail when devnet is unreachable, because a third party being down is not a
+regression.
+
+One manual step remains: the devnet faucet refuses programmatic airdrops, so the
+player address has to be funded once at <https://faucet.solana.com> before
+`solana:deposit` can run. Everything either side of that is live.
+
+**Cardano, Bitcoin and NEAR are still attested.** The cage's side of it is real
+and tested:
 it verifies a threshold of watcher signatures over a receipt binding both
 chains, both cages, the player, the amount and a nonce; replay-protects the
 whole digest; caps a single credit at 20% of unencumbered reserves; and refuses
@@ -267,16 +292,15 @@ to name the relayer as recipient. `npm run check:chains` credits six chains into
 one ledger, and `npm run check:nfv` proves a forged or oversized receipt is
 refused.
 
-What does **not** exist is a watcher that observes those chains. Nothing here
-reads Solana, Cardano, Bitcoin or NEAR. The attestation path is exercised with
-test keys standing in for observers, and `check:cage`'s "solana cage" is a
-second Solidity cage at Solana's rate on the same local EVM — its header says
-so. The demo's "buy in on Base, leave on Solana" is therefore a true statement
-about the accounting and a simulated one about the deposit.
+What does not exist for those three is a watcher. Nothing here reads Cardano,
+Bitcoin or NEAR, and their attestation path runs on test keys standing in for
+observers. Making any of them `watched` is the same shape of work the Solana
+watcher was; making them `native` needs a Plutus script or a NEAR contract, and
+Bitcoin cannot be native at all.
 
-Making Solana native would mean writing a Solana program. Making it genuinely
-attested would mean a watcher reading Solana devnet over RPC. Neither is done,
-and the UI labels it `ATTESTED` rather than implying otherwise.
+`check:cage`'s "solana cage" is still a second Solidity cage at Solana's rate on
+the same local EVM — its header says so. That test is about the chip ledger, not
+about Solana.
 
 ### What a chip costs
 

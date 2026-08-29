@@ -144,8 +144,9 @@ export function Cage() {
               whichever chain you bring. Rates that disagree are free money, so
               they are not allowed to.{' '}
               <b>NATIVE</b> means the cage contract runs on that chain and holds the
-              deposit — that is every EVM chain, from one Solidity file.{' '}
-              <b>ATTESTED</b> means it does not, and a watcher quorum vouches instead.
+              deposit — every EVM chain, from one Solidity file. <b>WATCHED</b> means
+              no cage runs there but a real watcher reads the chain and reports
+              deposits it has seen. <b>ATTESTED</b> means neither yet.
             </p>
             <div className="arcChains">
               {CHAINS.map((c, i) => (
@@ -158,7 +159,7 @@ export function Cage() {
                     <span className="arcChain__rate">{rateOf(c)} <span className="arcChain__usd">· {usdOf(c)}</span></span>
                   </span>
                   <span className={`arcChain__mode arcChain__mode--${c.mode}`}>
-                    {c.mode === 'native' ? 'NATIVE' : 'ATTESTED'}
+                    {c.mode === 'native' ? 'NATIVE' : c.mode === 'watched' ? 'WATCHED' : 'ATTESTED'}
                   </span>
                 </motion.div>
               ))}

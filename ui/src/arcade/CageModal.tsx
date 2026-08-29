@@ -43,8 +43,10 @@ export function CageModal({ onClose, onConfirm }: Props) {
   const note = useMemo(
     () =>
       chain.mode === 'native'
-        ? 'NATIVE — NightfoldCage.sol runs on this chain and holds the deposit itself. Deployed and tested.'
-        : 'ATTESTED — no cage runs on this chain, so a watcher quorum vouches for the deposit instead. The cage verifies the quorum; nothing yet watches this chain for real.',
+        ? 'NATIVE — NightfoldCage.sol runs on this chain and holds the deposit itself.'
+        : chain.mode === 'watched'
+        ? 'WATCHED — no cage runs here, but a real watcher reads this chain over RPC and reports deposits it has actually seen. npm run solana:watch.'
+        : 'ATTESTED — no cage and no watcher yet. The cage would verify a signed claim about this chain; nothing produces one.',
     [chain],
   );
 

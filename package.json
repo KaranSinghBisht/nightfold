@@ -18,7 +18,7 @@
     "check:rank": "node src/handrank.check.mjs",
     "check:fuzz": "node src/handrank.fuzz.mjs 20000",
     "check:hand": "node src/hand.e2e.mjs",
-    "check": "npm run typecheck && npm run check:rank && npm run check:fuzz && npm run check:hand && npm run check:muck && npm run check:security && npm run check:game && npm run check:lifecycle && npm run check:engine && npm run check:escrow && npm run check:cage && npm run check:evmsec && npm run check:exploits && npm run check:nfv && npm run check:pricing && npm run check:chains && npm run check:crosschain",
+    "check": "npm run typecheck && npm run check:rank && npm run check:fuzz && npm run check:hand && npm run check:muck && npm run check:security && npm run check:game && npm run check:lifecycle && npm run check:engine && npm run check:escrow && npm run check:cage && npm run check:evmsec && npm run check:exploits && npm run check:nfv && npm run check:pricing && npm run check:chains && npm run check:solana && npm run check:crosschain",
     "anvil": "anvil --port 8545 --silent",
     "check:escrow": "node src/evm/escrow.test.mjs",
     "check:crosschain": "node src/crosschain.e2e.mjs",
@@ -36,7 +36,10 @@
     "check:exploits": "node src/evm/exploits.test.mjs",
     "logo": "node scripts/logo.mjs",
     "check:nfv": "node src/evm/nfv.test.mjs",
-    "check:lifecycle": "node src/lifecycle.test.mjs"
+    "check:lifecycle": "node src/lifecycle.test.mjs",
+    "solana:deposit": "node scripts/solana-deposit.mjs",
+    "solana:watch": "node scripts/solana-watch.mjs",
+    "check:solana": "node src/solana/watcher.test.mjs"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.16.0",
@@ -66,8 +69,9 @@
     "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
   },
   "devDependencies": {
-    "tsx": "^4.23.12",
+    "@solana/web3.js": "^1.98.4",
     "solc": "^0.8.36",
+    "tsx": "^4.23.12",
     "viem": "^2.56.0"
   }
 }
