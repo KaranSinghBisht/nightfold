@@ -66,10 +66,10 @@ export function startHand(button: 0 | 1 = 0, stacks: [number, number] = [200, 20
     winner: null,
     deckCommitment: shortHex(d.deckCommitment, 16),
     events: [
-      { chain: 'base', label: 'openHand', detail: 'seat 0 buys in — 0.05 ETH' },
-      { chain: 'solana', label: 'joinHand', detail: 'seat 1 buys in — 1.2 SOL' },
-      { chain: 'midnight', label: 'commitDeal', detail: `seat 0 → ${shortHex(d.deckCommitment, 20)}`, opaque: true },
-      { chain: 'midnight', label: 'commitDeal', detail: `seat 1 → ${shortHex(a.commitment, 20)}`, opaque: true },
+      { chain: 'base', label: 'buyIn', detail: '0.05 ETH → 1,000 chips · Alice' },
+      { chain: 'solana', label: 'buyIn', detail: '10 SOL → 1,000 chips · Bob' },
+      { chain: 'midnight', label: 'commitDeal', detail: `seat 0 · ${shortHex(d.deckCommitment, 18)}`, opaque: true, masked: ['cards'] },
+      { chain: 'midnight', label: 'commitDeal', detail: `seat 1 · ${shortHex(a.commitment, 18)}`, opaque: true, masked: ['cards'] },
     ],
   };
 }
@@ -79,7 +79,6 @@ const BOARD_FOR: Record<string, number> = { preflop: 0, flop: 3, turn: 4, river:
 
 /** Apply a betting action and advance the hand. */
 export function applyAction(e: Engine, action: Action): Engine {
-  const before = e.betting.street;
   const betting = bet(e.betting, action);
   const events = [...e.events];
 
@@ -91,14 +90,6 @@ export function applyAction(e: Engine, action: Action): Engine {
     label,
     detail: `seat ${e.betting.toAct} · pot ${betting.pot + betting.committed[0] + betting.committed[1]}`,
   });
-
-  if (betting.street !== before && BOARD_FOR[betting.street] !== undefined) {
-    events.push({
-      chain: 'base',
-      label: betting.street,
-      detail: `${BOARD_FOR[betting.street] - BOARD_FOR[before]} card(s) dealt face up`,
-    });
-  }
 
   const next: Engine = {
     ...e,
@@ -128,7 +119,7 @@ export function resolveShowdown(e: Engine, seat: 0 | 1, choice: Showdown, rankOf
     const rank = rankOf([...e.hole[seat], ...e.board]);
     events.push({ chain: 'midnight', label: 'revealHand', detail: `seat ${seat} shows → rank ${rank}` });
   } else {
-    events.push({ chain: 'midnight', label: 'muckHand', detail: `seat ${seat} concedes · nothing published`, opaque: true });
+    events.push({ chain: 'midnight', label: 'muckHand', detail: `seat ${seat} concedes`, opaque: true, masked: ['cards', 'rank'] });
   }
 
   const next = { ...e, shown, events };
@@ -137,15 +128,7 @@ export function resolveShowdown(e: Engine, seat: 0 | 1, choice: Showdown, rankOf
   // which is the cheapest privacy in poker and the whole point of the feature.
   if (choice === 'muck') {
     const other = (seat === 0 ? 1 : 0) as 0 | 1;
-    if (shown[other] === null) {
-      events.push({
-        chain: 'midnight',
-        label: 'settle',
-        detail: `seat ${other} wins uncontested · neither hand published`,
-        opaque: true,
-      });
-    }
-    return settle({ ...next, phase: 'settled', winner: other });
+    return settle({ ...next, phase: 'settled', winner: other }, 'uncontested');
   }
 
   if (shown[0] && shown[1]) return decide(next, rankOf);
@@ -167,21 +150,25 @@ function decide(e: Engine, rankOf: (ids: number[]) => number): Engine {
   return settle({ ...e, phase: 'settled', winner });
 }
 
-function settle(e: Engine): Engine {
+function settle(e: Engine, note?: string): Engine {
   const paid = payout(e.betting, e.winner ?? undefined);
   const pot = e.betting.pot + e.betting.committed[0] + e.betting.committed[1];
   const who = e.winner === 2 ? 'split' : `seat ${e.winner}`;
 
-  return {
-    ...e,
-    betting: paid,
-    events: [
-      ...e.events,
-      { chain: 'midnight', label: 'settle', detail: `winner ${who} · attestation written`, opaque: true },
-      { chain: 'base', label: 'payout', detail: e.winner === 0 || e.winner === 2 ? `pot ${pot} → seat 0` : 'no payout' },
-      { chain: 'solana', label: 'payout', detail: e.winner === 1 || e.winner === 2 ? `pot ${pot} → seat 1` : 'no payout' },
-    ],
-  };
+  const events: LedgerEvent[] = [
+    ...e.events,
+    {
+      chain: 'midnight',
+      label: 'settle',
+      detail: `winner ${who}${note ? ` · ${note}` : ''} · attestation written`,
+      opaque: true,
+      ...(note === 'uncontested' ? { masked: ['both hands'] } : {}),
+    },
+  ];
+  if (e.winner === 0 || e.winner === 2) events.push({ chain: 'base', label: 'payout', detail: `pot ${pot} → seat 0` });
+  if (e.winner === 1 || e.winner === 2) events.push({ chain: 'solana', label: 'payout', detail: `pot ${pot} → seat 1` });
+
+  return { ...e, betting: paid, events };
 }
 
 /** What a given seat is allowed to see. The opponent's cards are ABSENT. */

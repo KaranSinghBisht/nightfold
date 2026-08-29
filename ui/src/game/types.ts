@@ -54,6 +54,12 @@ export interface LedgerEvent {
   detail: string;
   /** true when the row shows an opaque value rather than a readable one. */
   opaque?: boolean;
+  /**
+   * Fields whose VALUES are hidden on this chain, rendered as redaction blocks.
+   * The blocks are a constant glyph string — the real value is never in the
+   * DOM, so there is nothing behind the mask to inspect.
+   */
+  masked?: string[];
 }
 
 export interface HandState {

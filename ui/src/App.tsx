@@ -8,7 +8,8 @@ import { Table } from './Table';
  * needing a rewrite rule to exist.
  */
 function currentRoute(): 'landing' | 'play' {
-  return window.location.hash.replace(/^#\/?/, '') === 'play' ? 'play' : 'landing';
+  const page = window.location.hash.replace(/^#\/?/, '').split('?')[0];
+  return page === 'play' ? 'play' : 'landing';
 }
 
 export default function App() {

@@ -8,33 +8,54 @@ interface Props {
 export function Landing({ onPlay }: Props) {
   return (
     <div className="land">
+      {/* ---- nav ---- */}
+      <nav className="land__nav">
+        <span className="land__wordmark">Nightfold</span>
+        <div className="land__navLinks mono">
+          <a href="#play" onClick={(e) => { e.preventDefault(); onPlay(); }}>table</a>
+          <span aria-hidden>·</span>
+          <a href="https://github.com/KaranSinghBisht/nightfold">code</a>
+        </div>
+        <button className="land__enter mono" onClick={onPlay}>ENTER THE TABLE →</button>
+      </nav>
+
       {/* ---- hero ---- */}
       <header className="land__hero">
-        <div className="land__heroText">
-          <span className="eyebrow">Midnight Hackathon · Cross-Chain Track</span>
-          <h1 className="land__title">Nightfold</h1>
-          <p className="land__lede">
-            Texas Hold'em where the losing hand is never revealed — and your chips
-            can come from any chain.
-          </p>
+        <div className="land__beams" aria-hidden />
+
+        <div className="land__heroInner">
+          <span className="land__eyebrow mono">
+            heads-up hold'em · cross-chain chips · midnight commitments
+          </span>
+          <h1 className="land__title">
+            <span className="land__t1">lose the pot.</span>
+            <span className="land__t2">keep your cards.</span>
+          </h1>
+
           <div className="land__cta">
             <button className="land__play" onClick={onPlay}>Play a hand</button>
-            <a className="land__repo" href="https://github.com/KaranSinghBisht/nightfold">Read the code</a>
+            <a className="land__repo" href="https://github.com/KaranSinghBisht/nightfold">How it stays private</a>
           </div>
         </div>
 
-        <figure className="land__cards" aria-label="a mucked hand beside a winning one">
+        <figure className="land__heroCards" aria-label="a shown hand beside a mucked one">
           <div className="land__cardGroup">
             <PlayingCard card={{ rank: 'A', suit: 's' }} size="lg" />
             <PlayingCard card={{ rank: 'K', suit: 'h' }} size="lg" delay={80} />
-            <figcaption className="land__cap land__cap--won">shown · won the pot</figcaption>
+            <figcaption className="land__cap land__cap--won mono">shown · won the pot</figcaption>
           </div>
           <div className="land__cardGroup">
             <PlayingCard mucked size="lg" delay={160} />
             <PlayingCard mucked size="lg" delay={240} />
-            <figcaption className="land__cap land__cap--muck">mucked · never published</figcaption>
+            <figcaption className="land__cap land__cap--muck mono">mucked · never published</figcaption>
           </div>
         </figure>
+
+        <div className="land__brackets mono" aria-hidden>
+          <span>DEAL&nbsp;&nbsp;&nbsp;&nbsp;[ COMMITTED · VERIFIABLE ]</span>
+          <span>SHOWDOWN&nbsp;[ RANK · OR NOTHING ]</span>
+          <span>CAGE&nbsp;&nbsp;&nbsp;&nbsp;[ ANY CHAIN · ONE STACK ]</span>
+        </div>
       </header>
 
       {/* ---- the problem ---- */}

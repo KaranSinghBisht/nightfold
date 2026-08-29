@@ -1,0 +1,127 @@
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+.rail__head { display: flex; gap: 10px; align-items: flex-start; }
+.rail__dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--brass);
+  margin-top: 6px;
+  box-shadow: 0 0 8px var(--brass);
+  animation: railPulse 2.4s ease-in-out infinite;
+}
+@keyframes railPulse { 50% { opacity: .5; } }
+
+.rail__title {
+  font-family: var(--mono);
+  font-size: .74rem;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin: 0;
+}
+.rail__sub { margin: 3px 0 0; font-size: .78rem; line-height: 1.45; color: var(--muted); }
+
+/* ---- stat tiles ---------------------------------------------------------- */
+
+.rail__tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rail__tile {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.rail__num { font-size: 1.5rem; font-weight: 700; line-height: 1; color: var(--ink); }
+.rail__cap {
+  font-family: var(--mono);
+  font-size: .58rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- feed ---------------------------------------------------------------- */
+
+.rail__feedLabel { color: var(--muted); }
+
+.rail__feed {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 8px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+}
+.rail__idle { font-size: .74rem; color: var(--muted); }
+
+.rail__row {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.rail__row--new { animation: rowGlow 1.2s ease-out; }
+@keyframes rowGlow {
+  0% { border-color: var(--brass); box-shadow: 0 0 12px rgba(201, 162, 39, .25); }
+  100% { border-color: var(--line); box-shadow: none; }
+}
+
+.rail__rowHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.rail__pill {
+  font-family: var(--mono);
+  font-size: .64rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 3px;
+  border: 1px solid;
+}
+.rail__pill--midnight { color: var(--brass); border-color: var(--brass-dim); background: rgba(201, 162, 39, .08); }
+.rail__pill--base     { color: var(--base-blue); border-color: rgba(76, 130, 247, .45); background: rgba(76, 130, 247, .08); }
+.rail__pill--solana   { color: var(--sol-purple); border-color: rgba(153, 69, 255, .45); background: rgba(153, 69, 255, .08); }
+
+.rail__chain { font-size: .56rem; letter-spacing: .14em; }
+.rail__chain--midnight { color: var(--brass-dim); }
+.rail__chain--base { color: var(--base-blue); opacity: .7; }
+.rail__chain--solana { color: var(--sol-purple); opacity: .7; }
+
+.rail__detail { font-size: .78rem; color: var(--ink-dim); word-break: break-word; }
+.rail__detail.mono { font-size: .72rem; color: var(--muted); }
+
+/* ---- redaction ----------------------------------------------------------- */
+
+.rail__masked { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.rail__maskPair { display: inline-flex; align-items: baseline; gap: 7px; }
+.rail__maskName { font-size: .62rem; color: var(--muted); letter-spacing: .05em; }
+.rail__mask {
+  font-family: var(--mono);
+  font-size: .82rem;
+  line-height: 1;
+  letter-spacing: -.06em;
+  color: var(--sealed);
+  opacity: .85;
+  user-select: none;
+}
+
+/* ---- footer --------------------------------------------------------------- */
+
+.rail__foot {
+  display: flex; flex-direction: column; gap: 3px;
+  padding-top: 12px;
+  border-top: 1px solid var(--sealed);
+}
+.rail__never { font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; color: var(--sealed); }
+.rail__neverWhat { font-size: .82rem; color: var(--ink-dim); }

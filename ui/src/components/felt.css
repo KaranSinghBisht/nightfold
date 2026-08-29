@@ -1,0 +1,156 @@
+/* The table itself: a wooden rim around an oval of felt, lit from above. */
+
+.felt2 { display: flex; flex-direction: column; }
+
+.felt2__rim {
+  padding: 14px;
+  border-radius: 200px;
+  background:
+    linear-gradient(175deg, #3a2c1c, #241a0f 70%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .08),
+    0 18px 50px var(--shadow);
+}
+
+:root[data-theme='light'] .felt2__rim {
+  background: linear-gradient(175deg, #8a6f4d, #6b5439 70%);
+}
+
+.felt2__cloth {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 26px 34px 22px;
+  border-radius: 190px;
+  min-height: 480px;
+  justify-content: space-between;
+  background:
+    radial-gradient(85% 60% at 50% 8%, rgba(255, 236, 180, .10), transparent 55%),
+    radial-gradient(120% 120% at 50% 50%, var(--felt), var(--felt-deep) 78%);
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, .28),
+    inset 0 0 60px rgba(0, 0, 0, .35);
+}
+
+.felt2__brand {
+  position: absolute;
+  top: 71%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--display);
+  font-size: 2.2rem;
+  letter-spacing: .5em;
+  padding-left: .5em; /* optical centre with tracking */
+  color: rgba(255, 255, 255, .04);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ---- seats --------------------------------------------------------------- */
+
+.felt2__seat { display: flex; justify-content: center; }
+
+.plate {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  border-radius: 8px;
+  background: rgba(6, 10, 14, .55);
+  border: 1px solid rgba(255, 255, 255, .07);
+  backdrop-filter: blur(4px);
+  transition: border-color .3s ease, box-shadow .3s ease;
+}
+.plate--live {
+  border-color: var(--brass-dim);
+  box-shadow: 0 0 0 1px rgba(201, 162, 39, .25), 0 0 24px rgba(201, 162, 39, .12);
+}
+.plate--won {
+  border-color: var(--brass);
+  box-shadow: 0 0 0 1px rgba(201, 162, 39, .5), 0 0 34px rgba(201, 162, 39, .25);
+}
+
+.plate__cards { display: flex; gap: 7px; }
+
+.plate__info { display: flex; flex-direction: column; gap: 3px; min-width: 168px; }
+
+.plate__who { display: flex; align-items: center; gap: 8px; }
+.plate__name {
+  font-family: var(--display);
+  font-size: 1.35rem;
+  line-height: 1;
+  color: #f0eee9;
+}
+.plate__you {
+  font-family: var(--mono);
+  font-size: .56rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #12171c;
+  background: var(--brass);
+  padding: 2px 5px;
+  border-radius: 2px;
+}
+.plate__btnChip {
+  display: grid; place-items: center;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  font-size: .62rem;
+  font-weight: 700;
+  color: #12171c;
+  background: #e8e6e1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+}
+
+.plate__chips {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: .84rem; font-weight: 500;
+  color: #e6e3dc;
+}
+.plate__chipDot { width: 7px; height: 7px; border-radius: 50%; }
+.plate__via { font-size: .66rem; color: rgba(232, 230, 225, .5); }
+
+.plate__status {
+  font-family: var(--mono);
+  font-size: .62rem;
+  letter-spacing: .08em;
+  color: rgba(232, 230, 225, .55);
+}
+.plate__status--won { color: var(--brass); }
+.plate__status--muck { color: #c98383; }
+
+.plate__hint {
+  font-size: .74rem;
+  font-style: italic;
+  color: rgba(232, 230, 225, .65);
+}
+
+/* ---- board --------------------------------------------------------------- */
+
+.felt2__middle { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+
+.felt2__board { display: flex; gap: 9px; min-height: 74px; align-items: center; }
+
+.felt2__slot {
+  width: 52px; height: 74px;
+  border-radius: 4px;
+  border: 1px dashed rgba(255, 255, 255, .14);
+}
+
+.felt2__potRow { display: flex; align-items: baseline; gap: 16px; }
+.felt2__street {
+  font-size: .64rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: rgba(232, 230, 225, .5);
+}
+.felt2__pot { font-size: 1.05rem; font-weight: 700; color: #f0eee9; }
+.felt2__winner { font-size: .84rem; color: var(--brass); }
+
+@media (max-width: 760px) {
+  .felt2__rim { border-radius: 40px; }
+  .felt2__cloth { border-radius: 32px; min-height: 0; gap: 18px; padding: 20px 14px; }
+  .plate { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .felt2__brand { display: none; }
+}
