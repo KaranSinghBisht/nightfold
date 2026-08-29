@@ -215,6 +215,32 @@ against that chain, and chips bought on five chains cash out on a sixth.
 Non-EVM chain ids are CAIP-2 strings hashed into the same `uint256` space, so
 the source string is recoverable from the event.
 
+### What a chip costs
+
+A chip is the unit of account and it costs **$0.20**, whichever chain you bring.
+Rates are **derived**, never chosen per chain:
+
+    chipsPerToken(asset) = priceUsd(asset) / chipUsd
+
+That is not cosmetic. Rates picked by hand disagree, and disagreeing rates are
+free money — the first version priced Solana at 100 chips per SOL against
+Ethereum's 20,000 per ETH, which valued a chip at $0.20 going in and several
+dollars coming out. `npm run check:pricing` is the regression test, and it
+still asserts the size of the hole the old numbers left.
+
+`pricing.json` is the one table both the contracts' tests and the UI read, so a
+rate cannot drift in one place and not the other. `npm run prices` refreshes it
+from CoinGecko; it is committed rather than fetched at runtime because tests
+have to be deterministic and a contract cannot call an HTTP API.
+
+A committed table is a snapshot, and snapshots go stale — which is why
+`NightfoldCage` takes an optional oracle. With one set, `postRate()` moves the
+rate under a staleness window and a 20% per-post circuit breaker; a stale price
+stops the cage minting chips but deliberately still lets players redeem the
+ones they hold, because trapping a balance is the worse failure. With no oracle
+the launch rate is fixed for the life of that cage, which is what every cage in
+the test suite uses.
+
 Live watchers exist for the EVM leg. The other four are exercised through the
 relayer's attestation path in tests and are not watching mainnets — that is the
 honest limit, and `docs/security.md` records what the relayer can and cannot do.

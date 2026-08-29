@@ -33,7 +33,34 @@ pragma solidity ^0.8.24;
 ///     can no longer wedge anyone else's money.
 contract NightfoldCage {
     /// @notice chips per 1e18 wei of the native asset. Published, not secret.
+    ///         When no oracle is set this is the rate, fixed for the life of
+    ///         the cage. When one is set this is the rate it launched at, kept
+    ///         for reference, and `rate()` is what actually prices a buy-in.
     uint256 public immutable chipsPerToken;
+
+    /// @notice Optional price source.
+    ///
+    /// A chip is the unit of account, so every chain's rate has to be derived
+    /// from ONE view of what things are worth. If the rates disagree the
+    /// disagreement is free money: buy chips where they are cheap and cash out
+    /// where they are dear. A fixed rate cannot disagree on day one and cannot
+    /// help but disagree by day thirty, which is what this exists for.
+    ///
+    /// Unset (address(0)) keeps the launch rate forever — fine for a cage whose
+    /// life is one session, and it is the behaviour every existing deployment
+    /// has.
+    address public immutable oracle;
+
+    uint256 private livePrice;
+    uint64 public priceUpdatedAt;
+
+    /// @notice A price older than this cannot mint chips. It can still redeem
+    ///         them — see `exitRate()`.
+    uint64 public constant MAX_PRICE_AGE = 1 hours;
+    /// @notice Largest single move the oracle may post, in basis points. Caps
+    ///         what a compromised oracle can do in one transaction, and makes a
+    ///         run of them visible on chain rather than instant.
+    uint256 public constant MAX_MOVE_BPS = 2_000;
     address public immutable relayer;
     uint64 public constant RECLAIM_AFTER = 2 hours;
 
@@ -69,6 +96,7 @@ contract NightfoldCage {
     event CashedOut(address indexed player, uint256 chips, uint256 amount);
     event Reclaimed(bytes32 indexed depositId, address indexed player, uint128 amount);
     event Withdrawn(address indexed to, uint256 amount);
+    event RatePosted(uint256 chipsPerToken, uint256 postedAt);
 
     error NotRelayer();
     error AlreadyUsed();
@@ -78,6 +106,9 @@ contract NightfoldCage {
     error EmptyDeposit();
     error CageEmpty();
     error TransferFailed();
+    error NotOracle();
+    error PriceStale();
+    error PriceJump();
     error InsufficientChips();
     error EpochCapExceeded();
 
@@ -86,10 +117,51 @@ contract NightfoldCage {
         _;
     }
 
-    constructor(address _relayer, uint256 _chipsPerToken, uint256 _creditCapPerEpoch) {
+    constructor(
+        address _relayer,
+        uint256 _chipsPerToken,
+        uint256 _creditCapPerEpoch,
+        address _oracle
+    ) {
         relayer = _relayer;
         chipsPerToken = _chipsPerToken;
         creditCapPerEpoch = _creditCapPerEpoch;
+        oracle = _oracle;
+        livePrice = _chipsPerToken;
+        priceUpdatedAt = uint64(block.timestamp);
+    }
+
+    // ---- pricing -----------------------------------------------------------
+
+    /// @notice The rate that prices a buy-in right now. Reverts on a stale
+    ///         price rather than minting chips against a number nobody stands
+    ///         behind.
+    function rate() public view returns (uint256) {
+        if (oracle == address(0)) return chipsPerToken;
+        if (block.timestamp - priceUpdatedAt > MAX_PRICE_AGE) revert PriceStale();
+        return livePrice;
+    }
+
+    /// @notice The rate that prices a cash-out. Deliberately does NOT check
+    ///         staleness: a cage that cannot price should stop taking money in,
+    ///         but trapping chips already bought is the worse failure. An
+    ///         attacker cannot stop the oracle to reach this path, so the
+    ///         exposure is a stale rate on the way out, not a stuck balance.
+    function exitRate() public view returns (uint256) {
+        return oracle == address(0) ? chipsPerToken : livePrice;
+    }
+
+    function postRate(uint256 newChipsPerToken) external {
+        if (msg.sender != oracle) revert NotOracle();
+        if (newChipsPerToken == 0) revert NothingToDo();
+
+        uint256 prev = livePrice;
+        uint256 move = newChipsPerToken > prev ? newChipsPerToken - prev : prev - newChipsPerToken;
+        if (move * 10_000 > prev * MAX_MOVE_BPS) revert PriceJump();
+
+        livePrice = newChipsPerToken;
+        priceUpdatedAt = uint64(block.timestamp);
+        emit RatePosted(newChipsPerToken, block.timestamp);
     }
 
     // ---- buying in ---------------------------------------------------------
@@ -111,11 +183,11 @@ contract NightfoldCage {
     }
 
     function chipsFor(uint256 amount) public view returns (uint256) {
-        return (amount * chipsPerToken) / 1e18;
+        return (amount * rate()) / 1e18;
     }
 
     function tokensFor(uint256 chipAmount) public view returns (uint256) {
-        return (chipAmount * 1e18) / chipsPerToken;
+        return (chipAmount * 1e18) / exitRate();
     }
 
     /// @notice Credit chips for a deposit made ON THIS CHAIN.

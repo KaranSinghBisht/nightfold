@@ -1,7 +1,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { PixelMark } from './PixelMark';
 import { AsciiCage } from './AsciiCage';
-import { CHAINS } from './chains';
+import { CHAINS, rateOf, usdOf, unitsForChips, usdOfChips, CHIP_USD, SNAPSHOT } from './chains';
 import { TICKER, ENDINGS, PROTOCOL, LANES, STATS } from './copy';
 import './sections.css';
 
@@ -139,10 +139,10 @@ export function Cage() {
             </div>
             <p className="arc__lede">
               A card room does not let you bet dollars against euros — you buy chips
-              at the cage and settle up on the way out. The cage never learns which
-              chain a deposit came from: provenance is an opaque pair it
-              replay-protects. That is why a chain is a watcher here, not a new
-              contract.
+              at the cage and settle up on the way out. Every rate below is derived
+              from one price table, never chosen per chain: a chip costs ${CHIP_USD.toFixed(2)}{' '}
+              whichever chain you bring. Rates that disagree are free money, so
+              they are not allowed to.
             </p>
             <div className="arcChains">
               {CHAINS.map((c, i) => (
@@ -152,7 +152,7 @@ export function Cage() {
                   </span>
                   <span className="arcChain__text">
                     <span className="arcChain__name">{c.name}</span>
-                    <span className="arcChain__rate">1 {c.ticker} = {c.rate} chips</span>
+                    <span className="arcChain__rate">{rateOf(c)} <span className="arcChain__usd">· {usdOf(c)}</span></span>
                   </span>
                   <span className={`arcChain__mode arcChain__mode--${c.mode}`}>
                     {c.mode === 'native' ? 'NATIVE' : 'ATTESTED'}
@@ -165,19 +165,22 @@ export function Cage() {
 
         <motion.div className="arcCage__strip" {...reveal(2)}>
           <span className="arcCage__stripRow">
-            <b style={{ color: '#0052FF' }}>BASE</b> 0.05 ETH → 1,000 chips
+            <b style={{ color: '#0052FF' }}>BASE</b> {unitsForChips('ETH', 1000)} → 1,000 chips
           </span>
           <span className="arcCage__stripRow">
-            <b style={{ color: '#9945FF' }}>SOLANA</b> 10 SOL → 1,000 chips
+            <b style={{ color: '#9945FF' }}>SOLANA</b> {unitsForChips('SOL', 1000)} → 1,000 chips
           </span>
           <span className="arcCage__stripRow arcCage__stripRow--pot">2,000 CHIPS IN PLAY</span>
           <span className="arcCage__stripRow">
-            <b style={{ color: '#9945FF' }}>SOLANA</b> 1,850 chips → 18.5 SOL
+            <b style={{ color: '#9945FF' }}>SOLANA</b> 1,850 chips → {unitsForChips('SOL', 1850)}
           </span>
         </motion.div>
         <motion.p className="arcCage__punch" {...reveal(2)}>
-          Alice bought in on Base. She left on Solana. Neither cage ever held both
-          assets, and the chip ledger conserves across all six.
+          Alice bought in on Base. She left on Solana. Both buy-ins are worth the
+          same {usdOfChips(1000)}, neither cage ever held both assets, and the chip
+          ledger conserves across all six. Prices snapshotted{' '}
+          {SNAPSHOT.slice(0, 10)} — <code>npm run prices</code> refreshes them, and a
+          deployed cage tracks an oracle rather than this file.
         </motion.p>
       </div>
     </section>

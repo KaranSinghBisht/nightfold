@@ -9,6 +9,7 @@
 // seat is allowed to see, and the opponent's hole cards are simply absent from
 // it unless they have chosen to show.
 
+import { unitsForChips } from '../arcade/chains';
 // @ts-expect-error — plain JS module shared with the test suites
 import { newHand, act as bet, legalActions, payout, endedOnFold } from '@shared/game/betting.mjs';
 // @ts-expect-error — plain JS module shared with the test suites
@@ -66,8 +67,8 @@ export function startHand(button: 0 | 1 = 0, stacks: [number, number] = [200, 20
     winner: null,
     deckCommitment: shortHex(d.deckCommitment, 16),
     events: [
-      { chain: 'base', label: 'buyIn', detail: '0.05 ETH → 1,000 chips · Alice' },
-      { chain: 'solana', label: 'buyIn', detail: '10 SOL → 1,000 chips · Bob' },
+      { chain: 'base', label: 'buyIn', detail: `${unitsForChips('ETH', 1000)} → 1,000 chips · Alice` },
+      { chain: 'solana', label: 'buyIn', detail: `${unitsForChips('SOL', 1000)} → 1,000 chips · Bob` },
       { chain: 'midnight', label: 'commitDeal', detail: `seat 0 · ${shortHex(d.deckCommitment, 18)}`, opaque: true, masked: ['cards'] },
       { chain: 'midnight', label: 'commitDeal', detail: `seat 1 · ${shortHex(a.commitment, 18)}`, opaque: true, masked: ['cards'] },
     ],

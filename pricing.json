@@ -1,0 +1,13 @@
+{
+  "_": "One source of truth for what a chip costs. Both the cage tests and the UI read this file, so a rate cannot drift in one place and not the other. A chip is the unit of account; every asset is priced INTO chips through USD, which is what stops a player buying chips cheaply on one chain and cashing them out dearly on another.",
+  "chipUsd": 0.2,
+  "snapshotUtc": "2026-08-29T10:14:00.204Z",
+  "assets": {
+    "ETH": 2433,
+    "BTC": 77553,
+    "SOL": 103.2,
+    "ADA": 0.2,
+    "NEAR": 1.8
+  },
+  "source": "coingecko simple/price"
+}

@@ -56,9 +56,11 @@ const CHAINS = [
 
 const { abi, bytecode } = compileCage();
 const CREDIT_CAP = 10_000_000n;
+/** No oracle: the published rate is fixed for the life of these cages. */
+const ZERO = '0x0000000000000000000000000000000000000000';
 
 const hash = await wallet('deployer').deployContract({
-  abi, bytecode, args: [acct.relayer.address, 20_000n, CREDIT_CAP],
+  abi, bytecode, args: [acct.relayer.address, 20_000n, CREDIT_CAP, ZERO],
 });
 const { contractAddress: cage } = await wait(hash);
 await wait(await wallet('deployer').writeContract({ address: cage, abi, functionName: 'fund', value: parseEther('10') }));

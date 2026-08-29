@@ -1,0 +1,165 @@
+/* The table, in the landing page's language.
+ *
+ * This is a re-skin, not a rewrite: the desk redefines the tokens its own
+ * stylesheet already reads, so layout.css / felt.css / chainrail.css keep
+ * working untouched. Only the handful of things that carry the brand — the
+ * wordmark, the felt, the buttons, the chip figure — get a rule of their own.
+ */
+
+.desk--arc {
+  --ground:    #06080B;
+  --surface:   #0C1116;
+  --surface-2: #0A0E13;
+  --line:      #1B2530;
+
+  /* the accent stops being brass and becomes the phosphor */
+  --brass:     #5C9BFF;
+  --brass-dim: #3D6FC4;
+
+  /* the cloth stops being baize and becomes a screen */
+  --felt:      #0C1620;
+  --felt-deep: #060A0F;
+
+  --sealed:    #FF5252;
+  --ink:       #EEF3F8;
+  --ink-dim:   #B3BFCA;
+  --muted:     #8195A9;
+
+  font-family: var(--mono);
+  background: var(--ground);
+  position: relative;
+}
+
+/* ---- brand ---------------------------------------------------------------- */
+
+.desk--arc .desk__bar {
+  background: rgba(6, 8, 11, .82);
+  border-bottom: 1px solid #31414F;
+}
+
+.desk--arc .desk__brand { align-items: center; gap: 11px; }
+.desk--arc .desk__mark { color: var(--brass); line-height: 0; filter: drop-shadow(0 0 6px rgba(92, 155, 255, .8)); }
+.desk--arc .desk__wordmark {
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: .92rem;
+  letter-spacing: .04em;
+}
+.desk--arc .desk__tag {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: .56rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: #C6D6E8;
+}
+
+.desk--arc .desk__phase {
+  font-family: var(--pixel);
+  font-size: .58rem;
+  border-radius: 0;
+  text-shadow: 0 0 12px rgba(92, 155, 255, .6);
+}
+.desk--arc .desk__deck { font-size: .62rem; letter-spacing: .06em; }
+
+/* ---- panels --------------------------------------------------------------- */
+
+.desk--arc .cage,
+.desk--arc .desk__actions,
+.desk--arc .rail {
+  border-radius: 0;
+  border-color: #31414F;
+  box-shadow: inset 0 0 40px rgba(92, 155, 255, .04);
+}
+
+.desk--arc .cage__title,
+.desk--arc .rail__title {
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: .66rem;
+  letter-spacing: .04em;
+}
+
+.desk--arc .cage__stack { border-radius: 0; border-color: var(--brass); background: rgba(92, 155, 255, .07); }
+.desk--arc .cage__stackNum {
+  font-family: var(--pixel);
+  font-size: 1.5rem;
+  text-shadow: 0 0 16px rgba(92, 155, 255, .6);
+}
+.desk--arc .cage__rate { border-radius: 0; gap: 10px; }
+.desk--arc .cage__chain { flex: none; }
+
+/* ---- the cloth ------------------------------------------------------------ */
+
+/* No wooden rim on a screen — a bezel, like every other panel on the site. */
+.desk--arc .felt2__rim {
+  padding: 10px;
+  border-radius: 0;
+  background: #050709;
+  outline: 1px solid #31414F;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, .74);
+}
+
+.desk--arc .felt2__cloth {
+  border-radius: 0;
+  background:
+    radial-gradient(120% 90% at 50% 12%, rgba(92, 155, 255, .07), transparent 58%),
+    repeating-linear-gradient(90deg, rgba(92, 155, 255, .035) 0 1px, transparent 1px 44px),
+    repeating-linear-gradient(0deg, rgba(92, 155, 255, .035) 0 1px, transparent 1px 44px),
+    #05080B;
+  box-shadow: inset 0 0 0 1px rgba(92, 155, 255, .1), inset 0 0 70px rgba(0, 0, 0, .5);
+}
+
+.desk--arc .felt2__brand {
+  font-family: var(--pixel);
+  font-size: 1.5rem;
+  letter-spacing: .32em;
+  color: rgba(92, 155, 255, .07);
+}
+
+.desk--arc .plate { border-radius: 0; }
+.desk--arc .plate__name {
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: .84rem;
+  letter-spacing: .04em;
+}
+.desk--arc .plate__chips { font-family: var(--mono); }
+
+/* ---- actions -------------------------------------------------------------- */
+
+.desk--arc .act {
+  font-family: var(--pixel);
+  font-size: .62rem;
+  letter-spacing: .06em;
+  border-radius: 0;
+  border-width: 2px;
+  text-transform: uppercase;
+  padding: 13px 20px;
+}
+.desk--arc .act--primary {
+  color: #06090C;
+  box-shadow: 4px 4px 0 rgba(92, 155, 255, .22);
+}
+.desk--arc .act--primary:hover { background: #7FB0FF; }
+.desk--arc .act--quiet { box-shadow: 4px 4px 0 rgba(255, 82, 82, .18); }
+.desk--arc .desk__prompt { font-size: .74rem; letter-spacing: .04em; }
+
+/* ---- chain rail ----------------------------------------------------------- */
+
+.desk--arc .rail__stat,
+.desk--arc .rail__event { border-radius: 0; }
+.desk--arc .rail__statNum { font-family: var(--pixel); font-size: 1.15rem; }
+.desk--arc .rail__tag { border-radius: 0; font-family: var(--pixel); font-size: .5rem; }
+
+/* The same tube as the landing, so the two pages are one machine. */
+.desk__tube {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, .22) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 100% at 50% 50%, transparent 56%, rgba(0, 0, 0, .3) 90%, rgba(0, 0, 0, .55) 100%);
+  mix-blend-mode: multiply;
+}

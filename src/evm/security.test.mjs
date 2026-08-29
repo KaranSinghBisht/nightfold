@@ -52,7 +52,8 @@ console.log('\nNF-001 — relayer drained a funded cage with no deposit\n');
 {
   const RATE = 20_000n;
   const CAP = 10_000_000n;
-  const addr = await deploy(cage, [acct.relayer.address, RATE, CAP]);
+  // No oracle: this suite is about the relayer's authority, not pricing.
+  const addr = await deploy(cage, [acct.relayer.address, RATE, CAP, '0x0000000000000000000000000000000000000000']);
   await wait(await wallet('deployer').writeContract({
     address: addr, abi: cage.abi, functionName: 'fund', value: parseEther('1'),
   }));

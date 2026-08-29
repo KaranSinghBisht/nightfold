@@ -14,9 +14,10 @@ export function Landing({ onPlay }: Props) {
       <div className="arc__tube" aria-hidden />
       <Hero onPlay={onPlay} />
       <Ticker />
+      {/* The cage leads: cross-chain is the claim, the muck is how it is played. */}
+      <Cage />
       <Endings />
       <Protocol />
-      <Cage />
       <Lanes onPlay={onPlay} />
     </div>
   );

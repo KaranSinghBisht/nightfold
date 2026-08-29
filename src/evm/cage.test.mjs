@@ -10,6 +10,7 @@ import { createWalletClient, createPublicClient, http, parseEther, formatEther, 
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
 import { compileCage } from './compile.mjs';
+import { chipsPerToken, weiForChips, unitsForChips } from '../pricing.mjs';
 
 const RPC = process.env.RPC_URL ?? 'http://127.0.0.1:8545';
 
@@ -34,14 +35,17 @@ const reverts = async (fn) => { try { await fn(); return false; } catch { return
 
 const { abi, bytecode } = compileCage();
 
-/** Published rates. A chip is the unit of account; these are what it costs. */
-const BASE_RATE = 20_000n;   // 1 ETH  -> 20,000 chips
-const SOL_RATE = 100n;       // 1 SOL  ->    100 chips
+/** Published rates, derived from the one USD table so they cannot disagree.
+    A rate chosen per chain is free money — see src/evm/pricing.test.mjs. */
+const BASE_RATE = chipsPerToken('ETH');   // 1 ETH -> 20,000 chips
+const SOL_RATE = chipsPerToken('SOL');    // 1 SOL ->  1,000 chips
 
 const CREDIT_CAP = 10_000_000n;
+/** No oracle: the published rate is fixed for the life of these cages. */
+const ZERO = '0x0000000000000000000000000000000000000000';
 
 async function deployCage(rate) {
-  const hash = await wallet('deployer').deployContract({ abi, bytecode, args: [acct.relayer.address, rate, CREDIT_CAP] });
+  const hash = await wallet('deployer').deployContract({ abi, bytecode, args: [acct.relayer.address, rate, CREDIT_CAP, ZERO] });
   const { contractAddress } = await wait(hash);
   // seed the house float so this cage can pay out chips bought elsewhere
   await wait(await wallet('deployer').writeContract({
@@ -65,14 +69,21 @@ const call = (cage, who, fn, args, value) =>
 const aliceDep = keccak256(toHex('nightfold:dep:alice'));
 const bobDep = keccak256(toHex('nightfold:dep:bob'));
 
-await wait(await call(baseCage, 'alice', 'buyIn', [aliceDep], parseEther('0.05')));
-await wait(await call(solCage, 'bob', 'buyIn', [bobDep], parseEther('10')));
+// Both buy the same 1,000 chip stack. What that COSTS differs per chain and
+// per day; what it buys does not, which is the whole point of a cage.
+const aliceWei = weiForChips('ETH', 1000);
+const bobWei = weiForChips('SOL', 1000);
 
-const aliceChips = await read(baseCage, 'chipsFor', [parseEther('0.05')]);
-const bobChips = await read(solCage, 'chipsFor', [parseEther('10')]);
+await wait(await call(baseCage, 'alice', 'buyIn', [aliceDep], aliceWei));
+await wait(await call(solCage, 'bob', 'buyIn', [bobDep], bobWei));
 
-check('alice buys chips with ETH on base', aliceChips === 1000n, `0.05 ETH → ${aliceChips} chips`);
-check('bob buys chips with SOL on solana', bobChips === 1000n, `10 SOL → ${bobChips} chips`);
+const aliceChips = await read(baseCage, 'chipsFor', [aliceWei]);
+const bobChips = await read(solCage, 'chipsFor', [bobWei]);
+
+check('alice buys chips with ETH on base', aliceChips === 1000n,
+      `${unitsForChips('ETH', 1000).toPrecision(4)} ETH → ${aliceChips} chips`);
+check('bob buys chips with SOL on solana', bobChips === 1000n,
+      `${unitsForChips('SOL', 1000).toPrecision(4)} SOL → ${bobChips} chips`);
 check('both sit down with the SAME stack', aliceChips === bobChips,
       'different assets, different chains, one unit of account');
 
@@ -102,7 +113,12 @@ const expected = await read(baseCage, 'tokensFor', [won]);
 check('bob cashes out on a chain he never deposited to',
       after > before,
       `bought in with SOL, left with ~${formatEther(expected)} ETH`);
-check('the rate is the published one', expected === parseEther('0.1'), `${formatEther(expected)} ETH for ${won} chips`);
+// The cage floors on the way out, so a 2,000 chip exit is worth at most what
+// 2,000 chips cost and at least one chip less. It must never pay out more.
+const fair = weiForChips('ETH', Number(won));
+check('the rate is the published one',
+      expected <= fair && fair - expected <= 10n ** 18n / BASE_RATE,
+      `${formatEther(expected)} ETH for ${won} chips`);
 check('chips are burned on cash-out', (await read(baseCage, 'chips', [acct.bob.address])) === 0n);
 
 // ---- the cage's guarantees -------------------------------------------------

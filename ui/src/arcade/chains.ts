@@ -17,6 +17,22 @@
  * not a new contract.
  */
 
+import pricing from '../../../pricing.json';
+
+/**
+ * Rates are DERIVED, never chosen. A chip is the unit of account, so every
+ * chain's rate is its asset's USD price over the chip price. Rates chosen per
+ * chain would disagree, and disagreeing rates are free money — buy chips where
+ * they are cheap, cash out where they are dear. src/evm/pricing.test.mjs is the
+ * regression test, and it reads this same file.
+ */
+export const CHIP_USD = pricing.chipUsd;
+const USD: Record<string, number> = pricing.assets;
+
+const chipsPerToken = (ticker: string) => Math.round(USD[ticker] / CHIP_USD);
+
+const fmt = (n: number) => n.toLocaleString('en-US');
+
 export type ChainMode = 'native' | 'attested';
 
 export interface Chain {
@@ -27,8 +43,6 @@ export interface Chain {
   short: string;
   colour: string;
   mode: ChainMode;
-  /** chips per whole unit of the native asset */
-  rate: string;
   mark: string[];
 }
 
@@ -138,10 +152,33 @@ export const MIDNIGHT_MARK = [
 ];
 
 export const CHAINS: Chain[] = [
-  { id: 'base', short: 'BASE', name: 'Base', ticker: 'ETH', colour: '#0052FF', mode: 'native', rate: '20,000', mark: BASE },
-  { id: 'ethereum', short: 'ETH', name: 'Ethereum', ticker: 'ETH', colour: '#627EEA', mode: 'native', rate: '20,000', mark: ETHEREUM },
-  { id: 'solana', short: 'SOL', name: 'Solana', ticker: 'SOL', colour: '#9945FF', mode: 'attested', rate: '100', mark: SOLANA },
-  { id: 'cardano', short: 'ADA', name: 'Cardano', ticker: 'ADA', colour: '#3468D1', mode: 'attested', rate: '2', mark: CARDANO },
-  { id: 'bitcoin', short: 'BTC', name: 'Bitcoin', ticker: 'BTC', colour: '#F7931A', mode: 'attested', rate: '400,000', mark: BITCOIN },
-  { id: 'near', short: 'NEAR', name: 'NEAR', ticker: 'NEAR', colour: '#00EC97', mode: 'attested', rate: '20', mark: NEAR },
+  { id: 'base', short: 'BASE', name: 'Base', ticker: 'ETH', colour: '#0052FF', mode: 'native', mark: BASE },
+  { id: 'ethereum', short: 'ETH', name: 'Ethereum', ticker: 'ETH', colour: '#627EEA', mode: 'native', mark: ETHEREUM },
+  { id: 'solana', short: 'SOL', name: 'Solana', ticker: 'SOL', colour: '#9945FF', mode: 'attested', mark: SOLANA },
+  { id: 'cardano', short: 'ADA', name: 'Cardano', ticker: 'ADA', colour: '#3468D1', mode: 'attested', mark: CARDANO },
+  { id: 'bitcoin', short: 'BTC', name: 'Bitcoin', ticker: 'BTC', colour: '#F7931A', mode: 'attested', mark: BITCOIN },
+  { id: 'near', short: 'NEAR', name: 'NEAR', ticker: 'NEAR', colour: '#00EC97', mode: 'attested', mark: NEAR },
 ];
+
+/** "1 SOL = 1,000 chips" — the string the rail shows, derived not typed. */
+export const rateOf = (c: Chain) => `1 ${c.ticker} = ${fmt(chipsPerToken(c.ticker))} chips`;
+
+/** "$103.20" — what one unit of that asset is worth at the snapshot. */
+export const usdOf = (c: Chain) => `$${fmt(USD[c.ticker])}`;
+
+/**
+ * "1.94 SOL" — how much of an asset buys `chips`. Derived, so the examples on
+ * the page cannot drift away from the rates beside them the way hand-typed
+ * ones did.
+ */
+export function unitsForChips(ticker: string, chips: number): string {
+  const units = (chips * CHIP_USD) / USD[ticker];
+  const dp = units < 0.01 ? 4 : units < 1 ? 3 : 2;
+  return `${Number(units.toFixed(dp))} ${ticker}`;
+}
+
+/** What a chip stack is worth, as "$200". */
+export const usdOfChips = (chips: number) => `$${fmt(Math.round(chips * CHIP_USD))}`;
+
+export const SNAPSHOT = pricing.snapshotUtc;
+

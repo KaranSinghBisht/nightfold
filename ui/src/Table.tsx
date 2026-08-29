@@ -4,7 +4,10 @@ import { botAction, botShowdown } from './game/bot';
 import { rankOf, handName } from './game/rank';
 import { Felt } from './components/Felt';
 import { ChainRail, type SessionStats } from './components/ChainRail';
+import { PixelMark, SPADE } from './arcade/PixelMark';
+import { CHAINS, rateOf, unitsForChips } from './arcade/chains';
 import './layout.css';
+import './arcade/table-skin.css';
 
 const YOU = 0 as const;
 
@@ -86,10 +89,12 @@ export function Table() {
     : undefined;
 
   return (
-    <div className="desk">
+    <div className="desk desk--arc">
+      <div className="desk__tube" aria-hidden />
       <header className="desk__bar">
         <a className="desk__brand" href="#/">
-          <span className="desk__wordmark">Nightfold</span>
+          <PixelMark grid={SPADE} size={22} className="desk__mark" label="Nightfold" />
+          <span className="desk__wordmark">NIGHTFOLD</span>
           <span className="desk__tag">the loser never shows</span>
         </a>
         <div className="desk__meta mono">
@@ -116,22 +121,22 @@ export function Table() {
           <div className="cage__rates">
             <div className="cage__rate">
               <span className="cage__chain mono" style={{ color: 'var(--base-blue)' }}>BASE</span>
-              <span className="cage__rateVal mono">1 ETH = 20,000</span>
+              <span className="cage__rateVal mono">{rateOf(CHAINS[0])}</span>
             </div>
             <div className="cage__rate">
               <span className="cage__chain mono" style={{ color: 'var(--sol-purple)' }}>SOLANA</span>
-              <span className="cage__rateVal mono">1 SOL = 100</span>
+              <span className="cage__rateVal mono">{rateOf(CHAINS[2])}</span>
             </div>
           </div>
 
           <div className="cage__ins">
             <div className="cage__in">
               <span>Alice bought in</span>
-              <span className="mono">0.05 ETH → 1,000</span>
+              <span className="mono">{unitsForChips('ETH', 1000)} → 1,000</span>
             </div>
             <div className="cage__in">
               <span>Bob bought in</span>
-              <span className="mono">10 SOL → 1,000</span>
+              <span className="mono">{unitsForChips('SOL', 1000)} → 1,000</span>
             </div>
           </div>
 

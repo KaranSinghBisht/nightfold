@@ -192,6 +192,7 @@
 .arcChain__text { display: flex; flex-direction: column; gap: 3px; margin-right: auto; min-width: 0; }
 .arcChain__name { font-size: .66rem; letter-spacing: .1em; color: var(--paper); }
 .arcChain__rate { font-size: .55rem; letter-spacing: .04em; color: var(--faint); white-space: nowrap; }
+.arcChain__usd { color: var(--steel-dim); }
 
 .arcChain__mode {
   flex: none;
