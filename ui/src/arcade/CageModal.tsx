@@ -43,8 +43,8 @@ export function CageModal({ onClose, onConfirm }: Props) {
   const note = useMemo(
     () =>
       chain.mode === 'native'
-        ? 'NATIVE — the cage contract custodies this deposit itself.'
-        : 'ATTESTED — a watcher posts the deposit reference and the cage replay-protects it.',
+        ? 'NATIVE — NightfoldCage.sol runs on this chain and holds the deposit itself. Deployed and tested.'
+        : 'ATTESTED — no cage runs on this chain, so a watcher quorum vouches for the deposit instead. The cage verifies the quorum; nothing yet watches this chain for real.',
     [chain],
   );
 
@@ -122,8 +122,8 @@ export function CageModal({ onClose, onConfirm }: Props) {
 
           <p className="cageM__note">{note}</p>
           <p className="cageM__sim">
-            Rates are the ones the contracts use. The deposit is simulated in this
-            build — no transaction is broadcast.
+            Rates are the ones the contracts use. No transaction is broadcast in this
+            build.
           </p>
         </div>
 

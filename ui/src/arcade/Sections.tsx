@@ -142,7 +142,10 @@ export function Cage() {
               at the cage and settle up on the way out. Every rate below is derived
               from one price table, never chosen per chain: a chip costs ${CHIP_USD.toFixed(2)}{' '}
               whichever chain you bring. Rates that disagree are free money, so
-              they are not allowed to.
+              they are not allowed to.{' '}
+              <b>NATIVE</b> means the cage contract runs on that chain and holds the
+              deposit — that is every EVM chain, from one Solidity file.{' '}
+              <b>ATTESTED</b> means it does not, and a watcher quorum vouches instead.
             </p>
             <div className="arcChains">
               {CHAINS.map((c, i) => (

@@ -240,25 +240,43 @@ Notes that cost us time, so they don't cost you any:
 ## Chains
 
 The cage credits chips against an opaque `(sourceChainId, sourceDepositId)`
-pair, so it never needed to know which chain a deposit came from. Adding a
-chain is a watcher, not a new contract. Two modes, and the difference is real:
+pair, so it never needed to know which chain a deposit came from. What differs
+between chains is not the accounting — it is **whether a cage can run there at
+all**.
 
-| Chain    | Mode     | What that means                                              |
-|----------|----------|--------------------------------------------------------------|
-| Base     | native   | the cage contract custodies the deposit — `buyIn()` is payable |
-| Ethereum | native   | same bytecode; every EVM chain is one adapter                 |
-| Solana   | attested | a watcher posts the deposit reference; the cage replay-protects it |
-| Cardano  | attested | as above                                                      |
-| Bitcoin  | attested | as above                                                      |
-| NEAR     | attested | as above                                                      |
+`NightfoldCage.sol` is Solidity. It deploys unchanged to any EVM chain, and
+there `buyIn()` is payable: the money sits *inside the contract*. No other chain
+can run it. Solana would need a Rust program, Cardano a Plutus script, NEAR its
+own contract, and Bitcoin cannot hold a general contract at all. That is a
+property of those chains, not of where the effort went.
 
-`npm run check:chains` proves it: six chains credit one chip ledger, each
-deposit is single-use, a shared deposit id across two chains is NOT a replay
-(the pair is the key), every credit emits its source so anyone can check it
-against that chain, and chips bought on five chains cash out on a sixth.
+| Chain | Mode | What that means |
+|---|---|---|
+| Base | **native** | the cage runs here and holds the deposit |
+| Ethereum | **native** | same bytecode — every EVM chain is one adapter |
+| Solana | attested | no cage here; a watcher quorum vouches for the deposit |
+| Cardano | attested | as above |
+| Bitcoin | attested | as above, and it cannot be otherwise |
+| NEAR | attested | as above |
 
-Non-EVM chain ids are CAIP-2 strings hashed into the same `uint256` space, so
-the source string is recoverable from the event.
+**Be exact about the attested half.** The cage's side of it is real and tested:
+it verifies a threshold of watcher signatures over a receipt binding both
+chains, both cages, the player, the amount and a nonce; replay-protects the
+whole digest; caps a single credit at 20% of unencumbered reserves; and refuses
+to name the relayer as recipient. `npm run check:chains` credits six chains into
+one ledger, and `npm run check:nfv` proves a forged or oversized receipt is
+refused.
+
+What does **not** exist is a watcher that observes those chains. Nothing here
+reads Solana, Cardano, Bitcoin or NEAR. The attestation path is exercised with
+test keys standing in for observers, and `check:cage`'s "solana cage" is a
+second Solidity cage at Solana's rate on the same local EVM — its header says
+so. The demo's "buy in on Base, leave on Solana" is therefore a true statement
+about the accounting and a simulated one about the deposit.
+
+Making Solana native would mean writing a Solana program. Making it genuinely
+attested would mean a watcher reading Solana devnet over RPC. Neither is done,
+and the UI labels it `ATTESTED` rather than implying otherwise.
 
 ### What a chip costs
 

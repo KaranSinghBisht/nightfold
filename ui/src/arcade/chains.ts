@@ -1,6 +1,13 @@
 /**
  * The chains the cage knows about.
  *
+ * The split is not a ranking, it is a fact about where code can run.
+ * NightfoldCage.sol is Solidity, so it deploys unchanged to any EVM chain and
+ * genuinely custodies the deposit there. No other chain can run it: Solana
+ * needs a Rust program, Cardano needs Plutus, NEAR needs its own contract, and
+ * Bitcoin cannot hold one at all. Until those exist, a deposit on those chains
+ * is vouched for rather than held.
+ *
  * `mode` is the honest distinction, and it is a property of the cage contract
  * rather than marketing:
  *
