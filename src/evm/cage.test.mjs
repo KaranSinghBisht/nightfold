@@ -1,0 +1,129 @@
+// The cage, and the claim that makes Nightfold cross-chain:
+//
+//     buy in with one asset, play in chips, cash out in another.
+//
+// Two cages are deployed with different published rates, standing in for two
+// chains. Both run on the same local EVM here — that is a limitation of the
+// test rig, not of the design; the contract is per-chain and identical.
+
+import { createWalletClient, createPublicClient, http, parseEther, formatEther, keccak256, toHex } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { foundry } from 'viem/chains';
+import { compileCage } from './compile.mjs';
+
+const RPC = process.env.RPC_URL ?? 'http://127.0.0.1:8545';
+
+const KEYS = {
+  deployer: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+  alice:    '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
+  bob:      '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a',
+  relayer:  '0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6',
+  mallory:  '0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a',
+};
+const acct = Object.fromEntries(Object.entries(KEYS).map(([k, v]) => [k, privateKeyToAccount(v)]));
+const pub = createPublicClient({ chain: foundry, transport: http(RPC) });
+const wallet = (a) => createWalletClient({ account: acct[a], chain: foundry, transport: http(RPC) });
+const wait = (hash) => pub.waitForTransactionReceipt({ hash });
+
+let failures = 0;
+const check = (name, ok, detail = '') => {
+  if (!ok) failures++;
+  console.log(`${ok ? '  ok  ' : 'FAIL  '}${name}${detail ? '  — ' + detail : ''}`);
+};
+const reverts = async (fn) => { try { await fn(); return false; } catch { return true; } };
+
+const { abi, bytecode } = compileCage();
+
+/** Published rates. A chip is the unit of account; these are what it costs. */
+const BASE_RATE = 20_000n;   // 1 ETH  -> 20,000 chips
+const SOL_RATE = 100n;       // 1 SOL  ->    100 chips
+
+async function deployCage(rate) {
+  const hash = await wallet('deployer').deployContract({ abi, bytecode, args: [acct.relayer.address, rate] });
+  const { contractAddress } = await wait(hash);
+  // seed the house float so this cage can pay out chips bought elsewhere
+  await wait(await wallet('deployer').writeContract({
+    address: contractAddress, abi, functionName: 'fund', value: parseEther('10'),
+  }));
+  return contractAddress;
+}
+
+const baseCage = await deployCage(BASE_RATE);
+const solCage = await deployCage(SOL_RATE);
+
+console.log(`base cage   ${baseCage.slice(0, 12)}…  1 ETH = ${BASE_RATE} chips`);
+console.log(`solana cage ${solCage.slice(0, 12)}…  1 SOL = ${SOL_RATE} chips\n`);
+
+const read = (cage, fn, args) => pub.readContract({ address: cage, abi, functionName: fn, args });
+const call = (cage, who, fn, args, value) =>
+  wallet(who).writeContract({ address: cage, abi, functionName: fn, args, ...(value ? { value } : {}) });
+
+// ---- buy in on two different chains ---------------------------------------
+
+const aliceDep = keccak256(toHex('nightfold:dep:alice'));
+const bobDep = keccak256(toHex('nightfold:dep:bob'));
+
+await wait(await call(baseCage, 'alice', 'buyIn', [aliceDep], parseEther('0.05')));
+await wait(await call(solCage, 'bob', 'buyIn', [bobDep], parseEther('10')));
+
+const aliceChips = await read(baseCage, 'chipsFor', [parseEther('0.05')]);
+const bobChips = await read(solCage, 'chipsFor', [parseEther('10')]);
+
+check('alice buys chips with ETH on base', aliceChips === 1000n, `0.05 ETH → ${aliceChips} chips`);
+check('bob buys chips with SOL on solana', bobChips === 1000n, `10 SOL → ${bobChips} chips`);
+check('both sit down with the SAME stack', aliceChips === bobChips,
+      'different assets, different chains, one unit of account');
+
+await wait(await call(baseCage, 'relayer', 'markCredited', [aliceDep]));
+await wait(await call(solCage, 'relayer', 'markCredited', [bobDep]));
+check('deposits marked credited', (await read(baseCage, 'deposits', [aliceDep]))[3] === true);
+
+// ---- the cross-chain moment ------------------------------------------------
+// Bob won the hand. He bought in with SOL; he cashes out in ETH.
+
+const won = 2000n; // his 1000 plus Alice's
+const wid = keccak256(toHex('nightfold:wd:bob'));
+const before = await pub.getBalance({ address: acct.bob.address });
+await wait(await call(baseCage, 'relayer', 'cashOut', [wid, acct.bob.address, won]));
+const after = await pub.getBalance({ address: acct.bob.address });
+
+const expected = await read(baseCage, 'tokensFor', [won]);
+check('bob cashes out on a chain he never deposited to',
+      after - before === expected,
+      `bought in with SOL, left with ${formatEther(after - before)} ETH`);
+check('the rate is the published one', expected === parseEther('0.1'), `${formatEther(expected)} ETH for ${won} chips`);
+
+// ---- the cage's guarantees -------------------------------------------------
+
+check('a stranger cannot cash out',
+      await reverts(() => call(baseCage, 'mallory', 'cashOut', [keccak256(toHex('x')), acct.mallory.address, 1000n])));
+check('a withdrawal cannot be replayed',
+      await reverts(() => call(baseCage, 'relayer', 'cashOut', [wid, acct.bob.address, won])));
+check('a deposit id cannot be reused',
+      await reverts(() => call(baseCage, 'alice', 'buyIn', [aliceDep], parseEther('0.01'))));
+check('a credited deposit cannot be reclaimed',
+      await reverts(() => call(baseCage, 'alice', 'reclaim', [aliceDep])));
+
+// an un-credited deposit is recoverable once the relayer has clearly stalled
+const stuck = keccak256(toHex('nightfold:dep:stuck'));
+await wait(await call(baseCage, 'alice', 'buyIn', [stuck], parseEther('0.02')));
+check('cannot reclaim before the window', await reverts(() => call(baseCage, 'alice', 'reclaim', [stuck])));
+
+for (const [method, params] of [['evm_increaseTime', [7201]], ['evm_mine', []]]) {
+  await fetch(RPC, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+  });
+}
+const preReclaim = await pub.getBalance({ address: acct.alice.address });
+await wait(await call(baseCage, 'alice', 'reclaim', [stuck]));
+const postReclaim = await pub.getBalance({ address: acct.alice.address });
+check('a stalled relayer never costs you your buy-in',
+      postReclaim > preReclaim, `recovered ${formatEther(postReclaim - preReclaim)} ETH (less gas)`);
+check('someone else cannot reclaim your deposit',
+      await reverts(() => call(baseCage, 'mallory', 'reclaim', [stuck])));
+
+console.log(failures === 0
+  ? '\ncage: buy in anywhere, cash out anywhere — all checks passed'
+  : `\n${failures} FAILED`);
+process.exit(failures === 0 ? 0 : 1);

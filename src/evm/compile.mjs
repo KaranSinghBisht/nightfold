@@ -9,14 +9,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const SOURCE = 'NightfoldEscrow.sol';
-
-export function compileEscrow() {
-  const source = readFileSync(join(root, 'evm', SOURCE), 'utf8');
+/** Compile any contract in evm/ by file and contract name. */
+export function compileContract(file, contractName) {
+  const source = readFileSync(join(root, 'evm', file), 'utf8');
 
   const input = {
     language: 'Solidity',
-    sources: { [SOURCE]: { content: source } },
+    sources: { [file]: { content: source } },
     settings: {
       optimizer: { enabled: true, runs: 200 },
       outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object'] } },
@@ -34,19 +33,23 @@ export function compileEscrow() {
     console.warn('warning:', w.formattedMessage.trim().split('\n')[0]);
   }
 
-  const c = out.contracts[SOURCE].NightfoldEscrow;
+  const c = out.contracts[file][contractName];
   return { abi: c.abi, bytecode: '0x' + c.evm.bytecode.object };
 }
 
+export const compileEscrow = () => compileContract('NightfoldEscrow.sol', 'NightfoldEscrow');
+export const compileCage = () => compileContract('NightfoldCage.sol', 'NightfoldCage');
+
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const { abi, bytecode } = compileEscrow();
   mkdirSync(join(root, 'evm', 'out'), { recursive: true });
-  writeFileSync(
-    join(root, 'evm', 'out', 'NightfoldEscrow.json'),
-    JSON.stringify({ abi, bytecode }, null, 2)
-  );
-  console.log(`compiled NightfoldEscrow`);
-  console.log(`  bytecode : ${(bytecode.length / 2 - 1).toLocaleString()} bytes`);
-  console.log(`  functions: ${abi.filter((x) => x.type === 'function').map((x) => x.name).join(', ')}`);
-  console.log(`  events   : ${abi.filter((x) => x.type === 'event').map((x) => x.name).join(', ')}`);
+  for (const [file, name] of [
+    ['NightfoldEscrow.sol', 'NightfoldEscrow'],
+    ['NightfoldCage.sol', 'NightfoldCage'],
+  ]) {
+    const { abi, bytecode } = compileContract(file, name);
+    writeFileSync(join(root, 'evm', 'out', `${name}.json`), JSON.stringify({ abi, bytecode }, null, 2));
+    console.log(`\ncompiled ${name}`);
+    console.log(`  bytecode : ${(bytecode.length / 2 - 1).toLocaleString()} bytes`);
+    console.log(`  functions: ${abi.filter((x) => x.type === 'function').map((x) => x.name).join(', ')}`);
+  }
 }
