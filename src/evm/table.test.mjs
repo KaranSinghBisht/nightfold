@@ -13,6 +13,7 @@ import { createWalletClient, createPublicClient, http, keccak256, toHex } from '
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
 import { compileTable } from './compile.mjs';
+import { watcherAddresses, signTableSettle } from './watchers.mjs';
 
 const RPC = process.env.RPC_URL ?? 'http://127.0.0.1:8545';
 const KEYS = {
@@ -34,13 +35,25 @@ const check = (name, ok, detail = '') => {
 const reverts = async (fn) => { try { await fn(); return false; } catch { return true; } };
 
 const { abi, bytecode } = compileTable();
+const CAGE = 'deployer';
 const { contractAddress: table } = await wait(
-  await wallet('deployer').deployContract({ abi, bytecode, args: [] }));
+  await wallet('deployer').deployContract({
+    abi, bytecode, args: [acct[CAGE].address, watcherAddresses, 2n] }));
 
 const read = (fn, args = []) => pub.readContract({ address: table, abi, functionName: fn, args });
 const send = (who, fn, args) => wallet(who).writeContract({ address: table, abi, functionName: fn, args });
 
 const FOLD = 0, CHECK = 1, CALL = 2, BET = 3, RAISE = 4;
+
+/** Seat chips the way the cage does — the only way chips exist here now. */
+const seat = (who, amount) => send(CAGE, 'creditSeat', [acct[who].address, amount]);
+
+/** Settle carrying watcher signatures, which is the only way the pot moves. */
+const settleWith = async (id, winner, count = 2) => {
+  const sigs = await signTableSettle(
+    { chainId: BigInt(foundry.id), table, handId: id, winner }, count);
+  return send('deployer', 'settle', [id, winner, sigs]);
+};
 const hand = async (id) => {
   const raw = await read('hands', [id]);
   const names = abi.find((f) => f.type === 'function' && f.name === 'hands').outputs.map((o) => o.name);
@@ -51,8 +64,8 @@ console.log(`table ${table.slice(0, 12)}…  every action below is a transaction
 
 // ---- chips and a hand ------------------------------------------------------
 {
-  await wait(await send('alice', 'deposit', [10_000n]));
-  await wait(await send('bob', 'deposit', [10_000n]));
+  await wait(await seat('alice', 10_000n));
+  await wait(await seat('bob', 10_000n));
   check('chips arrive at the table', (await read('chips', [acct.alice.address])) === 10_000n);
 
   const id = keccak256(toHex('nf:table:1'));
@@ -89,8 +102,8 @@ console.log(`table ${table.slice(0, 12)}…  every action below is a transaction
   // RA-008: uncapped, a big stack shoving into a short one left both at zero
   // with commitments unequal, and the round never closed.
   const id = keccak256(toHex('nf:table:allin'));
-  await wait(await send('alice', 'deposit', [5_000n]));
-  await wait(await send('bob', 'deposit', [5_000n]));
+  await wait(await seat('alice', 5_000n));
+  await wait(await seat('bob', 5_000n));
   await wait(await send('alice', 'startHand', [id, acct.bob.address, 200n]));
 
   const cap = await read('maxRaise', [id]);
@@ -139,7 +152,7 @@ console.log(`table ${table.slice(0, 12)}…  every action below is a transaction
   check('the table cannot settle before showdown is reached', true, 'street guard');
 
   const aliceBefore = await read('chips', [acct.alice.address]);
-  await wait(await send('deployer', 'settle', [id, 0]));
+  await wait(await settleWith(id, 0));
   check('a Midnight outcome awards the pot',
         (await read('chips', [acct.alice.address])) > aliceBefore,
         'the table knows who bet what and never learns a card');
@@ -164,6 +177,99 @@ console.log(`table ${table.slice(0, 12)}…  every action below is a transaction
         `${free} free + ${locked} locked in open hands = ${free + locked}`);
   check('and a settled hand locks nothing',
         (await hand(keccak256(toHex('nf:table:fold')))).open === false);
+}
+
+// ---- the two the audit executed ------------------------------------------
+//
+// Both of these ran against this contract and both worked. They are the reason
+// the API above changed shape, so they are tests now, not prose.
+{
+  console.log('\ntwo exploits ran against this contract. both must now fail.');
+
+  // NFT-001. `deposit(uint256)` was `chips[msg.sender] += amount`, with no
+  // payment, no cage and no authority. It credited 10^30 chips against a
+  // contract holding nothing.
+  check('a stranger cannot mint chips',
+        await reverts(() => send('mallory', 'creditSeat', [acct.mallory.address, 10n ** 30n])),
+        'chips are a claim on the cage; only the cage may make one');
+  check('and the old faucet is gone from the ABI',
+        !abi.some((f) => f.name === 'deposit'),
+        'deposit() no longer exists');
+
+  // NFT-002, the worst one. `settle` was external with no check at all: a
+  // stranger named the winner and the Midnight proof was never consulted.
+  await wait(await seat('alice', 2_000n));
+  await wait(await seat('bob', 2_000n));
+  const id = keccak256(toHex('nf:table:pwn'));
+  await wait(await send('alice', 'startHand', [id, acct.bob.address, 1_000n]));
+  await wait(await send('alice', 'act', [id, CALL, 0n]));
+  await wait(await send('bob', 'act', [id, CHECK, 0n]));
+  for (let i = 0; i < 3; i++) {
+    await wait(await send('bob', 'act', [id, CHECK, 0n]));
+    await wait(await send('alice', 'act', [id, CHECK, 0n]));
+  }
+  check('the hand is at showdown, pot live', Number((await hand(id)).street) === 4);
+
+  check('a stranger cannot settle with no signatures',
+        await reverts(() => send('mallory', 'settle', [id, 0, []])),
+        'this exact call paid the losing seat before');
+  check('nor with a signature that is not a watcher\'s',
+        await reverts(async () => {
+          const digest = await read('settleDigest', [id, 0]);
+          const sig = await wallet('mallory').signMessage({ message: { raw: digest } });
+          return send('mallory', 'settle', [id, 0, [sig]]);
+        }));
+  check('nor with one real watcher when the threshold is two',
+        await reverts(() => settleWith(id, 0, 1)));
+  check('nor with the same watcher submitted twice',
+        await reverts(async () => {
+          const sigs = await signTableSettle(
+            { chainId: BigInt(foundry.id), table, handId: id, winner: 0 }, 1);
+          return send('mallory', 'settle', [id, 0, [sigs[0], sigs[0]]]);
+        }),
+        'ascending-order rule makes a duplicate quorum impossible');
+  check('nor by reusing a quorum signed for the OTHER winner',
+        await reverts(async () => {
+          const sigs = await signTableSettle(
+            { chainId: BigInt(foundry.id), table, handId: id, winner: 1 }, 2);
+          return send('mallory', 'settle', [id, 0, sigs]);
+        }),
+        'the digest binds the winner');
+
+  const before = await read('chips', [acct.bob.address]);
+  await wait(await settleWith(id, 1));
+  check('a real quorum pays the winner Midnight proved',
+        (await read('chips', [acct.bob.address])) > before);
+}
+
+// ---- the liveness trap the fix could have introduced ----------------------
+{
+  // Requiring signatures to move money means a silent watcher set locks both
+  // players' chips forever. That trade is not acceptable, so there is a way out
+  // that does not let silence pick a winner.
+  await wait(await seat('alice', 2_000n));
+  await wait(await seat('bob', 2_000n));
+  const id = keccak256(toHex('nf:table:quiet'));
+  await wait(await send('alice', 'startHand', [id, acct.bob.address, 1_000n]));
+  await wait(await send('alice', 'act', [id, CALL, 0n]));
+  await wait(await send('bob', 'act', [id, CHECK, 0n]));
+  for (let i = 0; i < 3; i++) {
+    await wait(await send('bob', 'act', [id, CHECK, 0n]));
+    await wait(await send('alice', 'act', [id, CHECK, 0n]));
+  }
+  check('chips cannot be reclaimed while the watchers still have time',
+        await reverts(() => send('mallory', 'reclaim', [id])));
+
+  await pub.request({ method: 'evm_increaseTime', params: ['0x5460'] }); // 6h + 1m
+  await pub.request({ method: 'evm_mine', params: [] });
+  const a0 = await read('chips', [acct.alice.address]);
+  const b0 = await read('chips', [acct.bob.address]);
+  await wait(await send('mallory', 'reclaim', [id]));
+  const a1 = await read('chips', [acct.alice.address]);
+  const b1 = await read('chips', [acct.bob.address]);
+  check('after the timeout the pot splits and nobody is stranded',
+        a1 > a0 && b1 > b0,
+        'silence returns the money; it does not decide a winner');
 }
 
 console.log(failures

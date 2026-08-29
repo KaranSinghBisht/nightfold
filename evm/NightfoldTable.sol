@@ -47,6 +47,7 @@ contract NightfoldTable {
     uint128 public constant BIG_BLIND = 2;
 
     event Deposited(address indexed player, uint256 chips);
+    event Withdrawn(address indexed player, uint256 chips);
     event HandStarted(bytes32 indexed handId, address seat0, address seat1, uint128 stack0, uint128 stack1);
     event Acted(bytes32 indexed handId, uint8 seat, Action action, uint128 amount, uint128 pot);
     event StreetAdvanced(bytes32 indexed handId, Street street, uint128 pot);
@@ -60,15 +61,56 @@ contract NightfoldTable {
     error BadAmount();
     error CannotCheck();
     error InsufficientChips();
+    error NotTheCage();
+    error BadSignatures();
+    error TooEarly();
+
+    /// @notice The only address that may put chips on this table.
+    /// @dev NFT-001. `deposit` was `chips[msg.sender] += amount` with no
+    ///      payment and no authority: an executed exploit credited itself
+    ///      10^30 chips against a contract holding nothing. Chips are a claim
+    ///      on the cage's reserves, so only the cage may create them here.
+    address public immutable cage;
+
+    /// @dev The same watcher quorum NightfoldCage and NightfoldEscrow use.
+    mapping(address => bool) public isWatcher;
+    uint256 public immutable threshold;
+
+    /// @dev A hand whose watchers never sign must not strand its chips.
+    uint64 public constant SETTLE_TIMEOUT = 6 hours;
+    mapping(bytes32 => uint64) public showdownAt;
+
+    constructor(address cage_, address[] memory watchers_, uint256 threshold_) {
+        if (cage_ == address(0)) revert BadAmount();
+        if (threshold_ == 0 || threshold_ > watchers_.length) revert BadSignatures();
+        cage = cage_;
+        for (uint256 i = 0; i < watchers_.length; i++) {
+            if (watchers_[i] == address(0)) revert BadAmount();
+            isWatcher[watchers_[i]] = true;
+        }
+        threshold = threshold_;
+    }
 
     // ---- chips -------------------------------------------------------------
 
-    /// @notice Bring chips to the table. In the full flow these come from the
-    ///         cage; the table only needs to know the balance is real.
-    function deposit(uint256 amount) external {
-        if (amount == 0) revert BadAmount();
-        chips[msg.sender] += amount;
-        emit Deposited(msg.sender, amount);
+    /// @notice Seat a player's chips. Callable ONLY by the cage that backs them.
+    /// @dev The cage debits the player before calling, so a chip exists on
+    ///      exactly one of the two ledgers at a time — the same invariant that
+    ///      keeps a chip in exactly one cage across chains.
+    function creditSeat(address player, uint256 amount) external {
+        if (msg.sender != cage) revert NotTheCage();
+        if (player == address(0) || amount == 0) revert BadAmount();
+        chips[player] += amount;
+        emit Deposited(player, amount);
+    }
+
+    /// @notice Return chips to the cage. Only the cage may pull them back, and
+    ///         only chips that are not locked in a live hand.
+    function debitSeat(address player, uint256 amount) external {
+        if (msg.sender != cage) revert NotTheCage();
+        if (amount == 0 || chips[player] < amount) revert InsufficientChips();
+        chips[player] -= amount;
+        emit Withdrawn(player, amount);
     }
 
     // ---- a hand ------------------------------------------------------------
@@ -199,6 +241,7 @@ contract NightfoldTable {
 
         if (h.street == Street.River) {
             h.street = Street.Showdown;
+            showdownAt[handId] = uint64(block.timestamp);
             emit StreetAdvanced(handId, h.street, h.pot);
             return;
         }
@@ -218,12 +261,86 @@ contract NightfoldTable {
 
     /// @notice Award a hand that reached showdown. The winner comes from
     ///         Midnight — this contract never learns a card.
-    function settle(bytes32 handId, uint8 winner) external {
+    /// @notice The bytes the watchers sign to settle a hand.
+    /// @dev Public so anyone can recompute what a signature authorised. Bound
+    ///      to this chain and this table, so a signature for one cannot be
+    ///      replayed against another.
+    function settleDigest(bytes32 handId, uint8 winner) public view returns (bytes32) {
+        return keccak256(abi.encode("nf:table-settle:v1", block.chainid, address(this), handId, winner));
+    }
+
+    /// @notice Pay the pot to the winner Midnight proved.
+    ///
+    /// @dev NFT-002, and the worst finding in the project. This was `external`
+    ///      with no authority check whatsoever: an executed exploit had a
+    ///      stranger call `settle(hand, 0)` at showdown and hand the pot to the
+    ///      seat that lost, without a proof, a signature, or a stake. The
+    ///      Midnight showdown — the entire point of the system — was decorative,
+    ///      because the contract paying the money never asked about it.
+    ///
+    ///      The winner now has to arrive carrying signatures over (handId,
+    ///      winner) from a quorum of watchers who read the settled Midnight
+    ///      ledger. The relayer can still carry the message; it cannot author it.
+    function settle(bytes32 handId, uint8 winner, bytes[] calldata sigs) external {
         Hand storage h = hands[handId];
         if (!h.open) revert NoHand();
         if (h.street != Street.Showdown) revert WrongStreet();
         if (winner > 2) revert BadAmount();
+
+        _requireQuorum(settleDigest(handId, winner), sigs);
         _finish(handId, h, winner);
+    }
+
+    /// @notice Split the pot if no quorum settles the hand in time.
+    /// @dev Requiring signatures to move money creates a liveness trap: a
+    ///      watcher set that goes quiet locks both players' chips forever.
+    ///      After the timeout anyone may split, which returns the money without
+    ///      letting a silent quorum decide a winner by attrition.
+    function reclaim(bytes32 handId) external {
+        Hand storage h = hands[handId];
+        if (!h.open) revert NoHand();
+        if (h.street != Street.Showdown) revert WrongStreet();
+        if (block.timestamp < showdownAt[handId] + SETTLE_TIMEOUT) revert TooEarly();
+        _finish(handId, h, 2);
+    }
+
+    /// @dev Signers must arrive strictly ascending, so the same watcher cannot
+    ///      be submitted N times and counted as a quorum.
+    function _requireQuorum(bytes32 digest, bytes[] calldata sigs) private view {
+        if (sigs.length < threshold) revert BadSignatures();
+
+        bytes32 signed = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", digest));
+        address last = address(0);
+        uint256 seen;
+
+        for (uint256 i = 0; i < sigs.length; i++) {
+            address who = _recover(signed, sigs[i]);
+            if (who <= last) revert BadSignatures();
+            last = who;
+            if (!isWatcher[who]) revert BadSignatures();
+            unchecked { seen++; }
+        }
+        if (seen < threshold) revert BadSignatures();
+    }
+
+    function _recover(bytes32 signed, bytes calldata sig) private pure returns (address) {
+        if (sig.length != 65) revert BadSignatures();
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := calldataload(sig.offset)
+            s := calldataload(add(sig.offset, 32))
+            v := byte(0, calldataload(add(sig.offset, 64)))
+        }
+        if (v < 27) v += 27;
+        // Reject the malleable upper half of the curve order.
+        if (uint256(s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0) {
+            revert BadSignatures();
+        }
+        address who = ecrecover(signed, v, r, s);
+        if (who == address(0)) revert BadSignatures();
+        return who;
     }
 
     function _finish(bytes32 handId, Hand storage h, uint8 winner) private {

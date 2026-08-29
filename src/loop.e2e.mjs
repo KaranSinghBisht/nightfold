@@ -17,7 +17,7 @@ import { newTable, call as mn, dealHand, stage, emptyPS, bestFive } from './test
 import { cards, showHand } from './witnesses.mjs';
 import { readOutcome } from './relayer.mjs';
 import { compileCage, compileTable, compileEscrow } from './evm/compile.mjs';
-import { watcherAddresses, signCredit, signSettle } from './evm/watchers.mjs';
+import { watcherAddresses, signCredit, signSettle, signTableSettle } from './evm/watchers.mjs';
 import { chipsPerToken, weiForChips } from './pricing.mjs';
 
 const RPC = process.env.RPC_URL ?? 'http://127.0.0.1:8545';
@@ -79,13 +79,34 @@ check('different assets, different chains, the same stack', aliceChips === bobCh
 step(2, 'BET — on chain. every action is a transaction');
 
 const tbl = compileTable();
+// The table names ONE address that may create chips on it, and a watcher
+// quorum that must sign before the pot moves. Both were missing: `deposit` was
+// an open faucet and `settle` took no signatures, so a stranger could name the
+// winner and the Midnight proof was never consulted (NFT-001, NFT-002).
+const CAGE_OP = 'deployer';
 const { contractAddress: table } = await wait(
-  await wallet('deployer').deployContract({ abi: tbl.abi, bytecode: tbl.bytecode, args: [] }));
+  await wallet('deployer').deployContract({
+    abi: tbl.abi, bytecode: tbl.bytecode,
+    args: [acct[CAGE_OP].address, watcherAddresses, 2n] }));
 const tCall = (who, fn, args) => wallet(who).writeContract({ address: table, abi: tbl.abi, functionName: fn, args });
 const tRead = (fn, args = []) => pub.readContract({ address: table, abi: tbl.abi, functionName: fn, args });
 
-await wait(await tCall('alice', 'deposit', [aliceChips]));
-await wait(await tCall('bob', 'deposit', [bobChips]));
+// Chips reach the table only from the address the table names as its cage.
+//
+// KNOWN GAP, stated rather than hidden: this hop is performed by the cage
+// OPERATOR, not by a cage-to-table contract call. The cage's credit paths are
+// quorum- and provenance-gated for cross-chain receipts, and wiring the table
+// into that accounting is not something to do the night before a deadline. So
+// the table trusts one named address, that address is checked on chain, and
+// the reconciliation between the two ledgers is off chain in this build.
+await wait(await tCall(CAGE_OP, 'creditSeat', [acct.alice.address, aliceChips]));
+await wait(await tCall(CAGE_OP, 'creditSeat', [acct.bob.address, bobChips]));
+check('only the cage can put chips on the table',
+      await (async () => {
+        try { await tCall('bob', 'creditSeat', [acct.bob.address, 10n ** 30n]); return false; }
+        catch { return true; }
+      })(),
+      'this exact call minted 10^30 chips before the audit');
 
 const handId = keccak256(toHex('loop:hand'));
 await wait(await tCall('alice', 'startHand', [handId, acct.bob.address, 400n]));
@@ -163,7 +184,16 @@ const outcome = readOutcome(l, h.handId, (id, seat) => pureCircuits.seatKeyOf(id
 check('the relayer reads a settled outcome without seeing a card', outcome !== null);
 check('and it carries the muck', outcome.resolution[0] === 'muck');
 
-await wait(await tCall('deployer', 'settle', [handId, outcome.winner]));
+// The relayer CARRIES the outcome; it cannot author it. Two watchers who read
+// the settled Midnight ledger sign (handId, winner), and the table checks them.
+const tableSigs = await signTableSettle(
+  { chainId: 31337n, table, handId, winner: outcome.winner }, 2);
+check('a stranger cannot settle without that quorum',
+      await (async () => {
+        try { await tCall('alice', 'settle', [handId, 0, []]); return false; } catch { return true; }
+      })(),
+      'this exact call paid the losing seat before the audit');
+await wait(await tCall('deployer', 'settle', [handId, outcome.winner, tableSigs]));
 const bobAfter = await tRead('chips', [acct.bob.address]);
 const aliceAfter = await tRead('chips', [acct.alice.address]);
 check('the table pays the winner the Midnight outcome names', bobAfter === 1141n,

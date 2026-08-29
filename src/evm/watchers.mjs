@@ -85,3 +85,29 @@ export async function signSettle(params, count = 2, signers = watchers) {
   signed.sort((a, b) => (a.address < b.address ? -1 : 1));
   return signed.map((s) => s.sig);
 }
+
+/** The same bytes NightfoldTable.settleDigest produces. */
+export function tableSettleDigest({ chainId, table, handId, winner }) {
+  return keccak256(
+    encodeAbiParameters(SETTLE_ABI, ['nf:table-settle:v1', chainId, table, handId, winner]),
+  );
+}
+
+/**
+ * Sign a table settlement.
+ *
+ * NFT-002: NightfoldTable.settle took no signatures at all, so a stranger could
+ * name the winner and the Midnight proof never entered into it. These come from
+ * keys the relayer does not hold.
+ */
+export async function signTableSettle(params, count = 2, signers = watchers) {
+  const digest = tableSettleDigest(params);
+  const signed = await Promise.all(
+    signers.slice(0, count).map(async (w) => ({
+      address: w.address.toLowerCase(),
+      sig: await w.signMessage({ message: { raw: digest } }),
+    })),
+  );
+  signed.sort((a, b) => (a.address < b.address ? -1 : 1));
+  return signed.map((s) => s.sig);
+}
