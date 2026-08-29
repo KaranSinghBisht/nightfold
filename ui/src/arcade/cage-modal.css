@@ -1,0 +1,180 @@
+.cageM {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.cageM__scrim {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  background: rgba(3, 5, 8, .78);
+  backdrop-filter: blur(3px);
+  cursor: pointer;
+}
+
+.cageM__win {
+  position: relative;
+  width: min(520px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  border: 10px solid #050709;
+  outline: 1px solid #31414F;
+  background: #0C1116;
+  box-shadow: 0 0 0 1px rgba(92, 155, 255, .1), 0 30px 90px rgba(0, 0, 0, .8);
+  animation: cageIn .22s cubic-bezier(.2, .8, .3, 1);
+}
+
+@keyframes cageIn {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+.cageM__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #1B2530;
+  font-family: var(--mono);
+  font-size: .58rem;
+  letter-spacing: .14em;
+}
+.cageM__headName { color: #EEF3F8; margin-right: auto; }
+.cageM__x {
+  border: none;
+  background: none;
+  color: #8195A9;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.cageM__x:hover { color: #5C9BFF; }
+
+.cageM__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 18px;
+  font-family: var(--mono);
+}
+
+.cageM__label { font-size: .52rem; letter-spacing: .2em; color: #5A6874; }
+
+.cageM__chains { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+
+.cageM__chain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 9px;
+  border: 1px solid #1B2530;
+  background: rgba(255, 255, 255, .015);
+  color: #B3BFCA;
+  font-family: var(--mono);
+  font-size: .58rem;
+  letter-spacing: .06em;
+  cursor: pointer;
+  text-align: left;
+}
+.cageM__chain:hover { border-color: #31414F; }
+.cageM__chain--on { background: rgba(92, 155, 255, .07); color: #EEF3F8; }
+.cageM__chainName { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.cageM__amount {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #31414F;
+  background: #05080B;
+}
+.cageM__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: #EEF3F8;
+  font-family: var(--mono);
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+.cageM__ticker { font-size: .7rem; letter-spacing: .12em; }
+
+.cageM__stacks { display: flex; gap: 7px; }
+.cageM__stackBtn {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #1B2530;
+  background: transparent;
+  color: #8195A9;
+  font-family: var(--mono);
+  font-size: .55rem;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+.cageM__stackBtn:hover { border-color: #5C9BFF; color: #5C9BFF; }
+
+.cageM__out {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 18px;
+  border: 1px solid #5C9BFF;
+  background: rgba(92, 155, 255, .07);
+  box-shadow: inset 0 0 26px rgba(92, 155, 255, .08);
+}
+.cageM__out--bad { border-color: #8C2F2F; background: rgba(255, 82, 82, .05); box-shadow: none; }
+.cageM__chips {
+  font-family: var(--pixel);
+  font-size: 1.5rem;
+  color: #5C9BFF;
+  text-shadow: 0 0 16px rgba(92, 155, 255, .6);
+}
+.cageM__chipsCap { font-size: .58rem; letter-spacing: .12em; color: #8195A9; }
+
+.cageM__note { margin: 4px 0 0; font-size: .58rem; line-height: 1.7; letter-spacing: .04em; color: #8195A9; }
+.cageM__sim { margin: 0; font-size: .56rem; line-height: 1.7; color: #5A6874; }
+
+.cageM__foot {
+  display: flex;
+  gap: 10px;
+  padding: 14px 18px;
+  border-top: 1px solid #1B2530;
+}
+.cageM__btn {
+  flex: 1;
+  padding: 14px;
+  border: 2px solid #5C9BFF;
+  background: #5C9BFF;
+  color: #06090C;
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: .62rem;
+  letter-spacing: .06em;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 rgba(92, 155, 255, .22);
+}
+.cageM__btn:hover:not(:disabled) { background: #7FB0FF; }
+.cageM__btn:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+.cageM__btn--ghost {
+  flex: 0 0 auto;
+  padding: 14px 20px;
+  background: transparent;
+  color: #8195A9;
+  border-color: #31414F;
+  box-shadow: none;
+}
+.cageM__btn--ghost:hover { color: #EEF3F8; border-color: #5C9BFF; }
+
+@media (max-width: 520px) {
+  .cageM__chains { grid-template-columns: repeat(2, 1fr); }
+}

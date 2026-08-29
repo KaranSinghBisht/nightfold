@@ -15,7 +15,7 @@ import { newHand, act as bet, legalActions, payout, endedOnFold } from '@shared/
 // @ts-expect-error — plain JS module shared with the test suites
 import { commitSeed, deal, cardName } from '@shared/game/dealer.mjs';
 
-import type { Card, LedgerEvent, Seat, Phase } from './types';
+import type { Card, Chain as ChainId, LedgerEvent, Seat, Phase } from './types';
 
 export type Action =
   | { type: 'fold' }
@@ -38,6 +38,8 @@ export interface Engine {
   /** both hands live here; `view()` decides what a seat may see */
   hole: [number[], number[]];
   board: number[];
+  /** which chain each seat bought its chips on */
+  seatChains: [ChainId, ChainId];
   /** how many board cards are face up right now */
   revealed: number;
   betting: ReturnType<typeof newHand>;
@@ -51,7 +53,12 @@ const shortHex = (b: Uint8Array, n = 16) =>
   Array.from(b.slice(0, n / 2)).map((x) => x.toString(16).padStart(2, '0')).join('') + '…';
 
 /** Start a fresh hand: both players seed the deck, the dealer commits to it. */
-export function startHand(button: 0 | 1 = 0, stacks: [number, number] = [200, 200]): Engine {
+export function startHand(
+  button: 0 | 1 = 0,
+  stacks: [number, number] = [200, 200],
+  /** Which chain each seat's chips were bought on. */
+  seatChains: [ChainId, ChainId] = ['base', 'solana'],
+): Engine {
   const a = commitSeed();
   const b = commitSeed();
   const d = deal(a.seed, b.seed, { a: a.commitment, b: b.commitment });
@@ -63,6 +70,7 @@ export function startHand(button: 0 | 1 = 0, stacks: [number, number] = [200, 20
     board: d.board,
     revealed: 0,
     betting: newHand({ stackA: stacks[0], stackB: stacks[1], button }),
+    seatChains,
     shown: [null, null],
     winner: null,
     deckCommitment: shortHex(d.deckCommitment, 16),
@@ -175,7 +183,7 @@ function settle(e: Engine, note?: string): Engine {
 /** What a given seat is allowed to see. The opponent's cards are ABSENT. */
 export function view(e: Engine, you: 0 | 1): { seats: [Seat, Seat]; board: Card[] } {
   const names: [string, string] = ['Alice', 'Bob'];
-  const chains = ['base', 'solana'] as const;
+  const chains = e.seatChains;
 
   const seats = ([0, 1] as const).map((i) => {
     const isYou = i === you;

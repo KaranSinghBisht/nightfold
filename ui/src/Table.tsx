@@ -6,6 +6,8 @@ import { Felt } from './components/Felt';
 import { ChainRail, type SessionStats } from './components/ChainRail';
 import { PixelMark, SPADE } from './arcade/PixelMark';
 import { CHAINS, rateOf, unitsForChips } from './arcade/chains';
+import { CageModal, type BuyIn } from './arcade/CageModal';
+import { connect, short, type Wallet } from './arcade/wallet';
 import './layout.css';
 import './arcade/table-skin.css';
 
@@ -35,6 +37,29 @@ function initialEngine(): Engine {
 
 export function Table() {
   const [engine, setEngine] = useState<Engine>(initialEngine);
+  const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [cageOpen, setCageOpen] = useState(false);
+  const [lastBuy, setLastBuy] = useState<BuyIn | null>(null);
+
+  /** Sitting down with a bought stack starts a fresh hand at that size. */
+  const buyIn = useCallback((buy: BuyIn) => {
+    setCageOpen(false);
+    setLastBuy(buy);
+    setEngine((prev) => {
+      const next = startHand(0, [buy.chips, prev.betting.stacks[1]], [buy.chain.id as never, prev.seatChains[1]]);
+      return {
+        ...next,
+        events: [
+          {
+            chain: buy.chain.id as never,
+            label: 'buyIn',
+            detail: `${buy.units} ${buy.chain.ticker} on ${buy.chain.name} → ${buy.chips.toLocaleString('en-US')} chips`,
+          },
+          ...next.events.slice(1),
+        ],
+      };
+    });
+  }, []);
   const [thinking, setThinking] = useState(false);
   const [stats, setStats] = useState<SessionStats>({ hands: 1, settled: 0, commitments: 2, mucked: 0 });
   const settledFor = useRef<string | null>(null);
@@ -102,6 +127,16 @@ export function Table() {
             deck {engine.deckCommitment}
           </span>
           <span className="desk__phase">{engine.phase === 'settled' ? 'settled' : engine.betting.street}</span>
+          {wallet ? (
+            <span className="desk__wallet" title={wallet.address}>
+              {short(wallet.address)}
+              {wallet.kind === 'demo' && <em className="desk__demo">DEMO</em>}
+            </span>
+          ) : (
+            <button className="desk__connect" onClick={() => { void connect().then(setWallet); }}>
+              CONNECT WALLET
+            </button>
+          )}
         </div>
       </header>
 
@@ -118,6 +153,10 @@ export function Table() {
             <span className="cage__stackCap">your chips</span>
           </div>
 
+          <button className="cage__buy" onClick={() => setCageOpen(true)}>
+            BUY CHIPS — ANY CHAIN
+          </button>
+
           <div className="cage__rates">
             <div className="cage__rate">
               <span className="cage__chain mono" style={{ color: 'var(--base-blue)' }}>BASE</span>
@@ -131,8 +170,12 @@ export function Table() {
 
           <div className="cage__ins">
             <div className="cage__in">
-              <span>Alice bought in</span>
-              <span className="mono">{unitsForChips('ETH', 1000)} → 1,000</span>
+              <span>{lastBuy ? 'You bought in' : 'Alice bought in'}</span>
+              <span className="mono">
+                {lastBuy
+                  ? `${lastBuy.units} ${lastBuy.chain.ticker} → ${lastBuy.chips.toLocaleString('en-US')}`
+                  : `${unitsForChips('ETH', 1000)} → 1,000`}
+              </span>
             </div>
             <div className="cage__in">
               <span>Bob bought in</span>
@@ -211,6 +254,8 @@ export function Table() {
         {/* ---- the chain rail ---- */}
         <ChainRail events={engine.events} stats={stats} />
       </main>
+
+      {cageOpen && <CageModal onClose={() => setCageOpen(false)} onConfirm={buyIn} />}
     </div>
   );
 }

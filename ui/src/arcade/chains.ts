@@ -171,10 +171,19 @@ export const usdOf = (c: Chain) => `$${fmt(USD[c.ticker])}`;
  * the page cannot drift away from the rates beside them the way hand-typed
  * ones did.
  */
+export function rawUnitsForChips(ticker: string, chips: number): number {
+  return (chips * CHIP_USD) / USD[ticker];
+}
+
 export function unitsForChips(ticker: string, chips: number): string {
-  const units = (chips * CHIP_USD) / USD[ticker];
+  const units = rawUnitsForChips(ticker, chips);
   const dp = units < 0.01 ? 4 : units < 1 ? 3 : 2;
   return `${Number(units.toFixed(dp))} ${ticker}`;
+}
+
+/** How many chips `units` of an asset buys. The cage floors, so this does too. */
+export function chipsForUnits(ticker: string, units: number): number {
+  return Math.floor((units * USD[ticker]) / CHIP_USD);
 }
 
 /** What a chip stack is worth, as "$200". */

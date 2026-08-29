@@ -12,8 +12,8 @@ export interface Card {
   suit: Suit;
 }
 
-/** Where a player's chips came from. */
-export type Chain = 'base' | 'solana';
+/** Where a player's chips came from. Any chain the cage credits. */
+export type Chain = 'base' | 'ethereum' | 'solana' | 'cardano' | 'bitcoin' | 'near';
 
 export interface ChainInfo {
   id: Chain;
@@ -23,8 +23,12 @@ export interface ChainInfo {
 }
 
 export const CHAINS: Record<Chain, ChainInfo> = {
-  base:   { id: 'base',   label: 'Base Sepolia',  ticker: 'ETH', color: 'var(--base-blue)' },
-  solana: { id: 'solana', label: 'Solana devnet', ticker: 'SOL', color: 'var(--sol-purple)' },
+  base:     { id: 'base',     label: 'Base Sepolia',  ticker: 'ETH',  color: '#0052FF' },
+  ethereum: { id: 'ethereum', label: 'Ethereum',      ticker: 'ETH',  color: '#627EEA' },
+  solana:   { id: 'solana',   label: 'Solana devnet', ticker: 'SOL',  color: '#9945FF' },
+  cardano:  { id: 'cardano',  label: 'Cardano',       ticker: 'ADA',  color: '#3468D1' },
+  bitcoin:  { id: 'bitcoin',  label: 'Bitcoin',       ticker: 'BTC',  color: '#F7931A' },
+  near:     { id: 'near',     label: 'NEAR',          ticker: 'NEAR', color: '#00EC97' },
 };
 
 /** What we know about a seat right now. `hole` is present only for you. */

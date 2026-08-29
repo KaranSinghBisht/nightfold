@@ -16,9 +16,6 @@
   --brass:     #5C9BFF;
   --brass-dim: #3D6FC4;
 
-  /* the cloth stops being baize and becomes a screen */
-  --felt:      #0C1620;
-  --felt-deep: #060A0F;
 
   --sealed:    #FF5252;
   --ink:       #EEF3F8;
@@ -62,6 +59,56 @@
 }
 .desk--arc .desk__deck { font-size: .62rem; letter-spacing: .06em; }
 
+/* ---- connect + buy in ----------------------------------------------------- */
+
+.desk--arc .desk__connect {
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: .56rem;
+  letter-spacing: .06em;
+  padding: 9px 14px;
+  border: 2px solid var(--brass);
+  background: var(--brass);
+  color: #06090C;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 rgba(92, 155, 255, .22);
+}
+.desk--arc .desk__connect:hover { background: #7FB0FF; }
+
+.desk--arc .desk__wallet {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: .62rem;
+  letter-spacing: .06em;
+  color: var(--brass);
+  padding: 7px 11px;
+  border: 1px solid #31414F;
+}
+.desk--arc .desk__demo {
+  font-style: normal;
+  font-size: .46rem;
+  letter-spacing: .12em;
+  padding: 2px 5px;
+  color: #06090C;
+  background: var(--muted);
+}
+
+.desk--arc .cage__buy {
+  width: 100%;
+  font-family: var(--pixel);
+  font-weight: 700;
+  font-size: .56rem;
+  letter-spacing: .05em;
+  padding: 13px 10px;
+  border: 2px solid var(--brass);
+  background: transparent;
+  color: var(--brass);
+  cursor: pointer;
+  box-shadow: 3px 3px 0 rgba(92, 155, 255, .18);
+}
+.desk--arc .cage__buy:hover { background: rgba(92, 155, 255, .1); }
+
 /* ---- panels --------------------------------------------------------------- */
 
 .desk--arc .cage,
@@ -91,40 +138,16 @@
 
 /* ---- the cloth ------------------------------------------------------------ */
 
-/* No wooden rim on a screen — a bezel, like every other panel on the site. */
-.desk--arc .felt2__rim {
-  padding: 10px;
-  border-radius: 0;
-  background: #050709;
-  outline: 1px solid #31414F;
-  box-shadow: 0 26px 70px rgba(0, 0, 0, .74);
-}
-
-.desk--arc .felt2__cloth {
-  border-radius: 0;
-  background:
-    radial-gradient(120% 90% at 50% 12%, rgba(92, 155, 255, .07), transparent 58%),
-    repeating-linear-gradient(90deg, rgba(92, 155, 255, .035) 0 1px, transparent 1px 44px),
-    repeating-linear-gradient(0deg, rgba(92, 155, 255, .035) 0 1px, transparent 1px 44px),
-    #05080B;
-  box-shadow: inset 0 0 0 1px rgba(92, 155, 255, .1), inset 0 0 70px rgba(0, 0, 0, .5);
-}
+/* Deliberately NOT re-skinned. Everything around it is a terminal; the table
+   itself stays felt and stays oval, because that is what makes the page read
+   as a live game instead of a dashboard about one. */
 
 .desk--arc .felt2__brand {
   font-family: var(--pixel);
   font-size: 1.5rem;
   letter-spacing: .32em;
-  color: rgba(92, 155, 255, .07);
+  color: rgba(255, 255, 255, .05);
 }
-
-.desk--arc .plate { border-radius: 0; }
-.desk--arc .plate__name {
-  font-family: var(--pixel);
-  font-weight: 700;
-  font-size: .84rem;
-  letter-spacing: .04em;
-}
-.desk--arc .plate__chips { font-family: var(--mono); }
 
 /* ---- actions -------------------------------------------------------------- */
 

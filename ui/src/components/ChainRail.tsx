@@ -4,7 +4,11 @@ import './chainrail.css';
 const CHAIN_LABEL: Record<LedgerEvent['chain'], string> = {
   midnight: 'MIDNIGHT',
   base: 'BASE',
+  ethereum: 'ETHEREUM',
   solana: 'SOLANA',
+  cardano: 'CARDANO',
+  bitcoin: 'BITCOIN',
+  near: 'NEAR',
 };
 
 export interface SessionStats {
