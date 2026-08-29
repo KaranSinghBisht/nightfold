@@ -27,7 +27,7 @@ services:
       start_period: 10s
 
   node:
-    image: 'midnightntwrk/midnight-node:1.0.0@sha256:ede01da35e982b6a4b85461ad8492ae2753ef14246fba33c8039b782aa8e39fb'
+    image: 'midnightntwrk/midnight-node:1.0.1'
     ports:
       - '127.0.0.1:9944:9944'
     environment:

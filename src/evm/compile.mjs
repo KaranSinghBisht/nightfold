@@ -18,6 +18,10 @@ export function compileContract(file, contractName) {
     sources: { [file]: { content: source } },
     settings: {
       optimizer: { enabled: true, runs: 200 },
+      // NightfoldTable's Hand struct has more fields than the legacy codegen
+      // can return from an auto-generated getter ("stack too deep"). The IR
+      // pipeline handles it, and costs a few seconds of compile time.
+      viaIR: true,
       outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object'] } },
     },
   };
@@ -55,3 +59,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 
 export const compileFakeCage = () => compileContract('FakeCage.sol', 'FakeCage');
+
+export const compileTable = () => compileContract('NightfoldTable.sol', 'NightfoldTable');

@@ -6,8 +6,10 @@
 
 export const LOCAL = {
   networkId: 'undeployed',
-  indexer: 'http://127.0.0.1:8088/api/v3/graphql',
-  indexerWS: 'ws://127.0.0.1:8088/api/v3/graphql/ws',
+  // v4, per midnight-local-dev's own dApp example. v3 also answers 200 on
+  // indexer 4.3.3, which is why this was wrong for so long without looking it.
+  indexer: 'http://127.0.0.1:8088/api/v4/graphql',
+  indexerWS: 'ws://127.0.0.1:8088/api/v4/graphql/ws',
   node: 'http://127.0.0.1:9944',
   nodeWS: 'ws://127.0.0.1:9944',
   // MIDNIGHT_PROOF_SERVER lets scripts/proof-proxy.mjs sit in front and print
