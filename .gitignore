@@ -21,3 +21,9 @@ evm/out/
 .vercel
 .demo-prep/
 .demo-prep/
+
+# Video production — script, narration, recording preflight. Not part of the project.
+scripts/voiceover.mjs
+scripts/prep-demo.sh
+scripts/demo.mjs
+scripts/demo-credit-check.mjs

@@ -58,8 +58,8 @@ const base = await deployCage('BASE', 'ETH', '50');
 const sol = await deployCage('SOL', 'SOL', '50');
 
 // Each cage must know the other before it will honour a remote receipt, and
-// registration is behind a governance delay — so the demo does it up front
-// rather than discovering it mid-recording.
+// registration is behind a governance delay — so this does it up front rather
+// than leaving a 24-hour wait in the middle of the first cross-chain cash-out.
 const register = async (on, other) => {
   const call = (functionName, args) => wallet.writeContract({
     address: on, abi: cage.abi, functionName, args });

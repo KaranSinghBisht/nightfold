@@ -21,7 +21,7 @@ const demoParam = () =>
   new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('demo');
 
 /**
- * Fast-forward to a beat for recording: #play?demo=muck lands on the settled
+ * Deep-link straight to a state: #play?demo=muck lands on the settled
  * muck, #play?demo=showdown on the show-or-muck decision. Checks the hand down
  * so no betting randomness gets in the way of the shot. A demo URL skips the
  * lobby entirely — the shot is the hand, not the entrance.

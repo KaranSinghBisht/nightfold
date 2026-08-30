@@ -43,11 +43,9 @@
     "check:table": "node src/evm/table.test.mjs",
     "check:stack": "node src/privatestack.e2e.mjs",
     "check:loop": "node src/loop.e2e.mjs",
-    "demo": "node scripts/demo.mjs",
     "demo:deploy": "node scripts/demo-deploy.mjs",
     "demo:relayer": "node scripts/demo-relayer.mjs",
-    "solana:fund": "node scripts/solana-fund-cage.mjs",
-    "voiceover": "node scripts/voiceover.mjs"
+    "solana:fund": "node scripts/solana-fund-cage.mjs"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.16.0",
