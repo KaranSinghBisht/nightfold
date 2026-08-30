@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PixelMark } from './PixelMark';
-import { CHAINS, chipsForUnits, rawUnitsForChips, usdOfChips, rateOf, priceOf, changeOf, sparkOf, type Chain } from './chains';
+import { CHAINS, chipsForUnits, rawUnitsForChips, usdOfChips, rateOf, priceOf, changeOf, sparkOf, weiForChips, type Chain } from './chains';
+import { chainAvailable, chipsOf, deposit, waitForChips } from './chain';
 import { Sparkline } from './Sparkline';
 import './cage-modal.css';
 
@@ -8,7 +9,18 @@ export interface BuyIn {
   chain: Chain;
   units: number;
   chips: number;
+  /** Set when the cage really took the money and the relayer really credited. */
+  onChain?: { hash: string; credited: string };
 }
+
+/** Which deployed cage a picked chain maps to, if any. */
+const CAGE_FOR: Record<string, 'base' | 'sol'> = { base: 'base', ethereum: 'base' };
+
+type Phase =
+  | { at: 'idle' }
+  | { at: 'signing' }
+  | { at: 'waiting'; hash: string }
+  | { at: 'error'; message: string };
 
 interface Props {
   onClose: () => void;
@@ -28,10 +40,55 @@ const STACKS = [500, 1000, 2500];
 export function CageModal({ onClose, onConfirm }: Props) {
   const [chain, setChain] = useState<Chain>(CHAINS[0]);
   const [raw, setRaw] = useState(() => String(round(rawUnitsForChips(CHAINS[0].ticker, 1000))));
+  // Whether there is a chain behind this build at all. The deployed site has
+  // none, so it answers false and the modal stays the honest simulation it was.
+  const [live, setLive] = useState(false);
+  const [phase, setPhase] = useState<Phase>({ at: 'idle' });
+
+  useEffect(() => { void chainAvailable().then(setLive); }, []);
 
   const units = parseAmount(raw);
   const chips = units === null ? 0 : chipsForUnits(chain.ticker, units);
   const valid = units !== null && chips > 0;
+
+  const cage = CAGE_FOR[chain.id];
+  const canSign = live && cage !== undefined && phase.at !== 'signing' && phase.at !== 'waiting';
+
+  /**
+   * Take the money for real.
+   *
+   * The cage credits nothing here — it takes custody, and a relayer that does
+   * not hold this key credits the chips once it has seen the deposit. So this
+   * waits for the cage's own number rather than showing the one it hoped for.
+   */
+  const buyOnChain = async (want: number) => {
+    if (!cage) return;
+    setPhase({ at: 'signing' });
+    try {
+      const eth = (window as unknown as {
+        ethereum: { request(a: { method: string }): Promise<string[]> };
+      }).ethereum;
+      const player = (await eth.request({ method: 'eth_requestAccounts' }))[0] as `0x${string}`;
+
+      // Read the balance BEFORE the deposit. Reading it after races the
+      // relayer: if it has already credited, the target is wrong and the wait
+      // never finishes.
+      const before = await chipsOf(cage, player);
+
+      const { hash } = await deposit(cage, weiForChips(chain.ticker, want));
+      setPhase({ at: 'waiting', hash });
+
+      const after = await waitForChips(cage, player, before + BigInt(want));
+      onConfirm({
+        chain, units: units as number, chips: want,
+        onChain: { hash, credited: after.toString() },
+      });
+    } catch (err) {
+      // Never swallow this: a failed deposit that looks like a success is the
+      // worst thing this screen could do.
+      setPhase({ at: 'error', message: String((err as Error).message ?? err).slice(0, 180) });
+    }
+  };
 
   const pick = (next: Chain) => {
     setChain(next);
@@ -123,20 +180,45 @@ export function CageModal({ onClose, onConfirm }: Props) {
           </div>
 
           <p className="cageM__note">{note}</p>
-          <p className="cageM__sim">
-            Rates are the ones the contracts use. No transaction is broadcast in this
-            build.
-          </p>
+
+          {phase.at === 'error' && (
+            <p className="cageM__sim cageM__sim--bad">{phase.message}</p>
+          )}
+          {phase.at === 'signing' && (
+            <p className="cageM__sim">Confirm in your wallet — this is a real payable call to NightfoldCage.</p>
+          )}
+          {phase.at === 'waiting' && (
+            <p className="cageM__sim">
+              Deposit landed ({phase.hash.slice(0, 12)}…). Waiting for the relayer to credit —
+              the cage takes custody first and credits second, on a separate key.
+            </p>
+          )}
+          {phase.at === 'idle' && (
+            <p className="cageM__sim">
+              {canSign
+                ? 'Live cage on this machine. BUY CHIPS signs a real deposit.'
+                : live
+                ? `No cage is deployed for ${chain.name} in this build — pick Base to sign a real deposit.`
+                : 'Rates are the ones the contracts use. No chain is reachable from this build, so nothing is broadcast.'}
+            </p>
+          )}
         </div>
 
         <div className="cageM__foot">
           <button className="cageM__btn cageM__btn--ghost" onClick={onClose}>CANCEL</button>
           <button
             className="cageM__btn"
-            disabled={!valid}
-            onClick={() => valid && onConfirm({ chain, units: units as number, chips })}
+            disabled={!valid || phase.at === 'signing' || phase.at === 'waiting'}
+            onClick={() => {
+              if (!valid) return;
+              if (canSign) void buyOnChain(chips);
+              else onConfirm({ chain, units: units as number, chips });
+            }}
           >
-            BUY CHIPS
+            {phase.at === 'signing' ? 'CONFIRM IN WALLET…'
+              : phase.at === 'waiting' ? 'CREDITING…'
+              : canSign ? 'DEPOSIT & BUY CHIPS'
+              : 'BUY CHIPS'}
           </button>
         </div>
       </div>

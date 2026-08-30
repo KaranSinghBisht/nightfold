@@ -10,14 +10,21 @@ const shared = resolve(__dirname, '..', 'src');
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      '@shared': shared,
+    alias: [
+      { find: '@shared', replacement: shared },
       // The shared modules live outside ui/, so their bare imports resolve
       // against the ROOT node_modules — which a deploy that only installs ui/
-      // does not have. Point the one package they need at ui's own copy, so
-      // the build does not depend on the Midnight SDK being installed too.
-      '@noble/hashes': resolve(__dirname, 'node_modules', '@noble/hashes'),
-    },
+      // does not have. Point the ONE specifier they use at ui's own copy.
+      //
+      // Exact match, not a prefix. Aliasing the whole package captured viem's
+      // imports too, and viem wants @noble/hashes v1 subpaths (ripemd160,
+      // sha256) that do not exist in the v2 layout — it ships its own nested
+      // copy for exactly this reason, and a prefix alias hijacked it.
+      {
+        find: /^@noble\/hashes\/sha2\.js$/,
+        replacement: resolve(__dirname, 'node_modules', '@noble', 'hashes', 'sha2.js'),
+      },
+    ],
   },
   server: {
     fs: { allow: [resolve(__dirname), shared] },

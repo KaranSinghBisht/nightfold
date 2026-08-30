@@ -1,0 +1,169 @@
+/* The cash-out window.
+   Deliberately the same chrome as the cage modal — it is the same machine
+   running the other way, and making it look like a different product would
+   hide that. Solana purple only on the destination, so the one thing worth
+   noticing is where the money is going. */
+
+.cashO {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.cashO__scrim {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  background: rgba(3, 5, 8, .78);
+  backdrop-filter: blur(3px);
+  cursor: pointer;
+}
+
+.cashO__win {
+  position: relative;
+  width: min(460px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  border: 10px solid #050709;
+  outline: 1px solid #31414F;
+  background: #0C1116;
+  box-shadow: 0 0 0 1px rgba(153, 69, 255, .12), 0 30px 90px rgba(0, 0, 0, .8);
+  animation: cashIn .22s cubic-bezier(.2, .8, .3, 1);
+}
+
+@keyframes cashIn {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+.cashO__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #1B2530;
+  font-family: var(--mono);
+  font-size: .58rem;
+  letter-spacing: .14em;
+}
+.cashO__headName { color: #EEF3F8; margin-right: auto; }
+.cashO__x {
+  border: none;
+  background: none;
+  color: #8195A9;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.cashO__x:hover { color: #9945FF; }
+
+.cashO__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 18px;
+  font-family: var(--mono);
+}
+
+/* The route is the headline: two chains, one arrow, no ambiguity. */
+.cashO__route {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: .74rem;
+  letter-spacing: .16em;
+}
+.cashO__from  { color: var(--base-blue, #0052FF); }
+.cashO__arrow { color: #5A6874; }
+.cashO__to    { color: var(--sol-purple, #9945FF); }
+
+.cashO__blurb {
+  margin: 0;
+  font-family: var(--sans, inherit);
+  font-size: .82rem;
+  line-height: 1.5;
+  color: #8195A9;
+}
+
+.cashO__label { font-size: .52rem; letter-spacing: .2em; color: #5A6874; }
+
+.cashO__input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #1B2530;
+  background: rgba(255, 255, 255, .02);
+  color: #EEF3F8;
+  font-size: 1.05rem;
+  letter-spacing: .04em;
+}
+.cashO__input:focus-visible { outline: 2px solid #9945FF; outline-offset: 1px; }
+.cashO__input:disabled { opacity: .5; }
+
+.cashO__held { font-size: .56rem; letter-spacing: .1em; color: #5A6874; }
+
+.cashO__note {
+  margin: 0;
+  font-size: .58rem;
+  line-height: 1.6;
+  letter-spacing: .06em;
+  color: #6E8296;
+}
+.cashO__note--bad { color: #E9705F; }
+
+/* The receipt. This is the whole point of the screen, so it gets the weight. */
+.cashO__paid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px;
+  border: 1px solid rgba(153, 69, 255, .35);
+  background: rgba(153, 69, 255, .07);
+}
+.cashO__paidAmt { font-size: 1.3rem; color: #EEF3F8; letter-spacing: .02em; }
+.cashO__paidCap { font-size: .52rem; letter-spacing: .18em; color: #9E7BD6; }
+.cashO__link {
+  margin-top: 4px;
+  font-size: .56rem;
+  letter-spacing: .04em;
+  color: #9945FF;
+  word-break: break-all;
+}
+.cashO__link:hover { color: #B98CFF; }
+
+.cashO__foot {
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid #1B2530;
+}
+
+.cashO__btn {
+  flex: 1;
+  padding: 11px 12px;
+  border: 1px solid #9945FF;
+  background: #9945FF;
+  color: #0B0710;
+  font-family: var(--mono);
+  font-size: .58rem;
+  letter-spacing: .14em;
+  cursor: pointer;
+}
+.cashO__btn:hover:not(:disabled) { background: #A95CFF; border-color: #A95CFF; }
+.cashO__btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.cashO__btn--ghost {
+  flex: 0 0 auto;
+  border-color: #1B2530;
+  background: none;
+  color: #8195A9;
+}
+.cashO__btn--ghost:hover { border-color: #31414F; color: #EEF3F8; background: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cashO__win { animation: none; }
+}

@@ -226,3 +226,19 @@ export function priceOf(c: Chain): string {
   return `$${v.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp })}`;
 }
 
+
+/**
+ * The exact wei that buys `chips`, rounded UP.
+ *
+ * Mirrors weiForChips in src/pricing.mjs, which the browser cannot import
+ * because that module reads pricing.json off disk. Both derive from the same
+ * committed table, and both round the same direction for the same reason: the
+ * cage floors `chips = amount * rate / 1e18`, so an amount a hair light buys
+ * one chip fewer, and a player who asks for 2,500 should not be seated with
+ * 2,499. The dust stays with the cage.
+ */
+export function weiForChips(ticker: string, chips: bigint | number): bigint {
+  const rate = BigInt(chipsPerToken(ticker));
+  const c = BigInt(chips);
+  return (c * 10n ** 18n + rate - 1n) / rate;
+}

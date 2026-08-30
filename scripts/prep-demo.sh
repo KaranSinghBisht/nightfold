@@ -39,6 +39,33 @@ else
   bad "anvil" "not answering on :8545"
 fi
 
+# ---- the cage, deployed and staffed ----------------------------------------
+head_ "the cage"
+if node scripts/demo-deploy.mjs > "$LOG/deploy.log" 2>&1; then
+  ok "cages deployed" "$(grep -oE '0x[0-9a-f]{40}' "$LOG/deploy.log" | head -1) (base) + one for the payout side"
+else
+  bad "cages deployed" "see $LOG/deploy.log"
+fi
+
+pkill -f 'demo-relayer' >/dev/null 2>&1
+sleep 1
+nohup node scripts/demo-relayer.mjs > "$LOG/relayer.log" 2>&1 &
+for _ in $(seq 1 40); do grep -q 'watching  sol' "$LOG/relayer.log" 2>/dev/null && break; sleep 0.5; done
+if grep -q 'watching  sol' "$LOG/relayer.log" 2>/dev/null; then
+  ok "relayer" "$(grep -oE 'devnet cage balance: [0-9.]+ SOL' "$LOG/relayer.log" | head -1) to pay wins with"
+else
+  bad "relayer" "see $LOG/relayer.log"
+fi
+
+# A deposit credited here means the browser's deposit will be credited too.
+# The Solana payout leg is NOT exercised — it spends real devnet SOL, and the
+# recording should be the first one of the session.
+if node scripts/demo-credit-check.mjs > "$LOG/credit.log" 2>&1; then
+  ok "deposit -> chips" "$(tail -1 "$LOG/credit.log")"
+else
+  bad "deposit -> chips" "see $LOG/credit.log"
+fi
+
 # ---- shots that need only anvil --------------------------------------------
 head_ "shot B — npm run demo"
 S=$(date +%s)
@@ -118,86 +145,112 @@ else
 fi
 cat <<'EOF'
 
-  shot A   the table        ALREADY RUNNING -> http://localhost:5173
-                            play a hand, muck, devtools on the mucked card
-  shot B   the terminal     npm run demo           ~14s, runs live
-  shot C   real ZK proofs   npm run proof:real     ~170s (30s wallet sync +
-                            22s deploy + 113s proving) — record it, cut to ~10s
-  shot D   the suite        npm run check          ~46s, show the last line
+  ONE-TIME, BEFORE THE FIRST TAKE
+    Import an anvil account into MetaMask so it has ETH to deposit with:
+      private key  0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+    The site adds and switches to the local network for you on first deposit.
 
-  cue card with timings and what to say:  .demo-prep/CUE-CARD.md
-  transcripts of every shot:              .demo-prep/*.log
+  THE TAKE                                    http://localhost:5173
+    0:00  landing page
+    0:20  #play — mention the guest table, take the CASH lane
+    0:30  CONNECT WALLET, then BUY CHIPS on Base — a real signed deposit
+    0:50  the relayer credits; play the hand, muck it
+    1:30  CASH OUT — ANOTHER CHAIN -> burn on Base, paid in SOL on devnet
+    1:45  open the explorer link. that is the loop.
+
+  cue card with what to say:  .demo-prep/CUE-CARD.md
+  logs from every check:      .demo-prep/*.log
 EOF
 
 cat > "$LOG/CUE-CARD.md" <<'CARD'
-# Nightfold — 2:00 hard cap
+# Nightfold — 2:00 hard cap · Cross-Chain track
 
-Rules: say the hackathon name in the first seconds, video made during the
-event, repo and video public and staying public.
+Say the hackathon name in the first seconds. Video made during the event.
+Repo and video public, and staying public.
+
+**One-time setup:** import this anvil key into MetaMask so the wallet has ETH.
+`0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d`
+The site adds and switches to the local network itself on the first deposit.
 
 ---
 
-## 0:00–0:15 · name it and name the problem
+## 0:00–0:20 · the problem, on the landing page
 
-> "This is Nightfold, built for the MLH Midnight Hackathon, August 2026.
-> In a real card room, when you lose you muck — you slide your cards face
-> down and nobody ever learns what you had. On-chain poker takes that away.
-> Showdown means publishing your hole cards to a ledger that is indexed,
-> free, and permanent. Your opponents don't need tracking software.
-> The chain IS the tracking software."
+> "Nightfold, built for the MLH Midnight Hackathon, August 2026. Poker is a
+> game of hidden information, and every on-chain poker game throws that away
+> at showdown — you publish your cards to a ledger that is indexed, free and
+> permanent. We fixed that with Midnight, and we made the money work across
+> chains while we were at it."
 
-Show: the landing page.
+Scroll the landing page. Do not explain the muck yet — it lands harder once
+they have seen a hand.
 
-## 0:15–1:00 · play a hand  (shot A, localhost:5173)
+## 0:20–0:30 · two ways in
 
-Deal in as a guest. Play to showdown. Muck.
+Go to `#play`.
 
-> "I just mucked — conceded at showdown without showing. Watch what the
-> chain learns about the hand I was holding."
+> "There's a guest table if you just want to play. I'm taking the cash lane,
+> because that's where the cross-chain part lives."
 
-Open devtools on the mucked card. Nothing there — opponent cards are kept
-out of React state on purpose, so a mucked hand is never in the DOM.
+## 0:30–0:50 · connect and deposit on Base  ← THE CROSS-CHAIN CLAIM STARTS
 
-(Say muck, not fold. A fold happens during the betting; a muck is at
-showdown, and it is the whole point of the project.)
+CONNECT WALLET → BUY CHIPS → Base → DEPOSIT & BUY CHIPS. MetaMask opens.
 
-## 1:00–1:35 · the terminal  (shot B, `npm run demo`)
+> "This is a real payable call into NightfoldCage — the same contract the test
+> suite exercises. The cage takes custody and credits nothing. A relayer
+> holding a different key credits the chips after it has seen the deposit.
+> That split is why a compromised relayer can't mint itself a stack."
 
-Runs live in about 14 seconds. Two things land:
+Let the button sit on CREDITING… for a second. It is reading the cage's own
+number, not one the page made up.
 
-1. `published rank 2169397 decodes to: two pair, AAKK9`
-   > "Most on-chain poker publishes a rank and calls it private. A rank is
-   > the hand. Here it is, decoded back."
+## 0:50–1:30 · play the hand, and the Midnight part
 
-2. The loop: ETH on Base and SOL on Solana buy in at one price, betting is
-   on chain, the showdown proves on Midnight, and the winner cashes out on
-   a chain they never deposited to.
+Play to showdown. Muck.
 
-## 1:35–1:50 · real proofs  (shot C, pre-recorded, cut to ~10s)
+> "Cards are commitments on Midnight. At showdown I have four options, and
+> only one of them publishes anything: show my rank, prove I beat what you
+> showed, prove my hand clears a floor, or muck and say nothing at all.
+> I mucked. The chain has no idea what I was holding — and it never will,
+> because nothing was published to go back and read."
 
-> "This is not a simulator. A whole hand, proved on a local Midnight devnet."
+If there is room: devtools on the mucked card. It was never in the DOM.
 
-Show the timing table and the last line:
-`ledger: 1 hand, 1 rank, 1 muck, 1 settled` — one rank public, one hand
-hidden, forever.
+## 1:30–1:50 · leave on a chain you never arrived on  ← THE PAYOFF
+
+CASH OUT — ANOTHER CHAIN → BURN & PAY OUT ON SOLANA.
+
+> "I came in on Base. I'm leaving on Solana, which I never deposited to. The
+> chips burn on Base first — that ordering is what stops one stack being spent
+> on two chains — and then the payout lands on Solana devnet."
+
+Open the explorer link.
+
+> "That's a real devnet transaction. Anyone can check it."
 
 ## 1:50–2:00 · close
 
-> "Four security passes, every executed exploit is a regression test, and
-> the losing hand is never revealed. Nightfold."
+> "Chips from any chain, betting and settlement on chain, the showdown proved
+> on Midnight, and the losing hand never revealed. Nightfold."
 
 ---
 
-## If a shot has to be cut, cut in this order
+## If it runs long, cut in this order
 
-1. shot D (the suite) — a number, not a story
-2. the second half of shot B (the loop) — keep the rank decode
-3. shot C — keep it if at all possible, it is the only proof it is real
+1. the devtools aside at 1:20
+2. landing-page scrolling — 20s becomes 10s
+3. narration during CREDITING… — let it play silent
 
-## Before you hit record
+## Do NOT cut
 
-- `./scripts/prep-demo.sh` and confirm every line says GO
-- close other terminal tabs; the demo prints wide, use a big font
-- `gh repo edit --visibility public` — judges cannot open the repo otherwise
+The deposit, the muck, and the Solana explorer link. Those three ARE the
+submission: money in on one chain, hidden showdown, money out on another.
+
+## If something breaks mid-take
+
+- MetaMask on the wrong network -> the site offers the switch; accept it
+- CREDITING… hangs -> the relayer died. `.demo-prep/relayer.log` has why
+- payout never appears -> devnet cage is out of SOL. `npm run solana:fund 1`
+- worst case, the terminal proof still exists: `npm run demo` (14s, runs live)
 CARD
 exit $([ "$FAIL" -eq 0 ] && echo 0 || echo 1)

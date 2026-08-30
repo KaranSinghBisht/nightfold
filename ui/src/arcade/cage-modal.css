@@ -213,3 +213,18 @@
 @media (max-width: 520px) {
   .cageM__chains { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* The cash-out button lives beside BUY CHIPS in the cage rail. Purple, because
+   the destination is Solana and the colour is doing the same job it does in
+   the cash-out window itself. */
+.cage__buy--out {
+  margin-top: 6px;
+  border-color: rgba(153, 69, 255, .55);
+  background: none;
+  color: #B98CFF;
+}
+.cage__buy--out:hover {
+  border-color: #9945FF;
+  background: rgba(153, 69, 255, .1);
+  color: #EEF3F8;
+}

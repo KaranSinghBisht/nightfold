@@ -9,6 +9,7 @@ import { CHAINS, rateOf, unitsForChips } from './arcade/chains';
 import { CageModal, type BuyIn } from './arcade/CageModal';
 import { connect, short, type Wallet } from './arcade/wallet';
 import { Lobby } from './arcade/Lobby';
+import { CashOut } from './arcade/CashOut';
 import './layout.css';
 import './arcade/table-skin.css';
 
@@ -45,6 +46,7 @@ type Seat = 'guest' | 'cash';
 export function Table() {
   const [engine, setEngine] = useState<Engine>(initialEngine);
   const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [cashOpen, setCashOpen] = useState(false);
   const [cageOpen, setCageOpen] = useState(false);
   const [lastBuy, setLastBuy] = useState<BuyIn | null>(null);
   /** Null until the player has chosen a lane. A demo URL is already seated. */
@@ -189,6 +191,11 @@ export function Table() {
           <button className="cage__buy" onClick={() => setCageOpen(true)}>
             BUY CHIPS — ANY CHAIN
           </button>
+          {/* The other direction. Leaving on a chain you never arrived on is
+              the claim; it needs a button, not a paragraph. */}
+          <button className="cage__buy cage__buy--out" onClick={() => setCashOpen(true)}>
+            CASH OUT — ANOTHER CHAIN
+          </button>
 
           <div className="cage__rates">
             <div className="cage__rate">
@@ -289,6 +296,12 @@ export function Table() {
       </main>
 
       {cageOpen && <CageModal onClose={() => setCageOpen(false)} onConfirm={buyIn} />}
+      {cashOpen && (
+        <CashOut
+          address={(wallet?.kind === 'injected' ? wallet.address : null) as `0x${string}` | null}
+          onClose={() => setCashOpen(false)}
+        />
+      )}
     </div>
   );
 }
