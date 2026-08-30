@@ -1,5 +1,13 @@
 [
   {
+    "nonce": "1",
+    "chips": "490",
+    "sol": "0.947776",
+    "signature": "2JFjztW8pVzNwratsNGNNKWa3Br8LiBtnXUNK7a5g2SFDqY2h1TKKbzs3S2zAGd1NZf2ySnq8JFBf4ap3dFohN6K",
+    "url": "https://explorer.solana.com/tx/2JFjztW8pVzNwratsNGNNKWa3Br8LiBtnXUNK7a5g2SFDqY2h1TKKbzs3S2zAGd1NZf2ySnq8JFBf4ap3dFohN6K?cluster=devnet",
+    "at": "2026-08-30T05:31:01.665Z"
+  },
+  {
     "nonce": "2",
     "chips": "25",
     "sol": "0.048356",
