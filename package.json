@@ -46,7 +46,8 @@
     "demo": "node scripts/demo.mjs",
     "demo:deploy": "node scripts/demo-deploy.mjs",
     "demo:relayer": "node scripts/demo-relayer.mjs",
-    "solana:fund": "node scripts/solana-fund-cage.mjs"
+    "solana:fund": "node scripts/solana-fund-cage.mjs",
+    "voiceover": "node scripts/voiceover.mjs"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.16.0",
